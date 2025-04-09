@@ -63,6 +63,7 @@ export const toolParamNames = [
 	"task",
 	"query",
 	"limit",
+	"size",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

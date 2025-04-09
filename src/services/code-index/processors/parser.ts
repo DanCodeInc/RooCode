@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import { createHash } from 'crypto';
 import * as path from 'path';
-import { SyntaxNode, Query } from 'web-tree-sitter';
+import * as treeSitter from 'web-tree-sitter';
 import * as languageQueries from '../../tree-sitter/queries';
 import { loadRequiredLanguageParsers } from '../../tree-sitter/languageParser';
 import { ICodeParser, CodeBlock } from '../interfaces';
@@ -27,19 +27,19 @@ export class CodeParser implements ICodeParser {
     }): Promise<CodeBlock[]> {
         const minBlockLines = options?.minBlockLines ?? MIN_BLOCK_LINES;
         const maxBlockLines = options?.maxBlockLines ?? MAX_BLOCK_LINES;
-        
+
         // Get file extension
         const ext = path.extname(filePath).toLowerCase();
-        
+
         // Skip if not a supported language
         if (!this.isSupportedLanguage(ext)) {
             return [];
         }
-        
+
         // Get file content
         let content: string;
         let fileHash: string;
-        
+
         if (options?.content) {
             content = options.content;
             fileHash = options.fileHash || this.createFileHash(content);
@@ -52,11 +52,11 @@ export class CodeParser implements ICodeParser {
                 return [];
             }
         }
-        
+
         // Parse the file
         return this.parseContent(filePath, content, fileHash, minBlockLines, maxBlockLines);
     }
-    
+
     /**
      * Checks if a language is supported
      * @param extension File extension
@@ -65,7 +65,7 @@ export class CodeParser implements ICodeParser {
     private isSupportedLanguage(extension: string): boolean {
         return Object.keys(languageQueries).includes(extension.slice(1));
     }
-    
+
     /**
      * Creates a hash for a file
      * @param content File content
@@ -74,7 +74,7 @@ export class CodeParser implements ICodeParser {
     private createFileHash(content: string): string {
         return createHash('sha256').update(content).digest('hex');
     }
-    
+
     /**
      * Parses file content into code blocks
      * @param filePath Path to the file
@@ -92,30 +92,27 @@ export class CodeParser implements ICodeParser {
         maxBlockLines: number
     ): Promise<CodeBlock[]> {
         const ext = path.extname(filePath).slice(1).toLowerCase();
-        const language = await loadRequiredLanguageParsers(ext);
-        
-        if (!language) {
+        const languages = await loadRequiredLanguageParsers([ext]);
+
+        if (!languages || !languages[ext]) {
             return [];
         }
-        
-        const tree = language.parse(content);
-        const queryString = (languageQueries as any)[ext];
-        
-        if (!queryString) {
-            return [];
-        }
-        
-        const query = language.query(queryString);
-        const captures = query.captures(tree.rootNode);
+
+        const language = languages[ext];
+        const tree = language.parser.parse(content);
+
+        // We don't need to get the query string from languageQueries since it's already loaded
+        // in the language object
+        const captures = language.query.captures(tree.rootNode);
         const results: CodeBlock[] = [];
-        
+
         // Process captures
-        const queue: SyntaxNode[] = captures.map(capture => capture.node);
-        
+        const queue: treeSitter.SyntaxNode[] = captures.map((capture: any) => capture.node);
+
         while (queue.length > 0) {
             const currentNode = queue.shift()!;
             const lineSpan = currentNode.endPosition.row - currentNode.startPosition.row + 1;
-            
+
             if (lineSpan >= minBlockLines && lineSpan <= maxBlockLines) {
                 const identifier =
                     currentNode.childForFieldName('name')?.text ||
@@ -128,7 +125,7 @@ export class CodeParser implements ICodeParser {
                 const segmentHash = createHash('sha256')
                     .update(`${filePath}-${start_line}-${end_line}-${content}`)
                     .digest('hex');
-                
+
                 results.push({
                     file_path: filePath,
                     identifier,
@@ -143,7 +140,7 @@ export class CodeParser implements ICodeParser {
                 queue.push(...currentNode.children);
             }
         }
-        
+
         return results;
     }
 }

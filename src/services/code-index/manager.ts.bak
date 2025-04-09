@@ -3,11 +3,11 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import { ApiHandlerOptions } from '../../shared/api';
 import { getWorkspacePath } from '../../utils/path';
-import { 
-    ICodeIndexManager, 
-    IndexingState, 
-    QdrantSearchResult, 
-    IEmbedder, 
+import {
+    ICodeIndexManager,
+    IndexingState,
+    QdrantSearchResult,
+    IEmbedder,
     IVectorStore,
     IFileWatcher
 } from './interfaces';
@@ -20,7 +20,7 @@ import { DirectoryScanner, FileWatcher } from './processors';
  */
 export class CodeIndexManager implements ICodeIndexManager {
     private static instance: CodeIndexManager | null = null;
-    
+
     private _systemStatus: IndexingState = 'Standby';
     private _fileStatuses: Record<string, string> = {};
     private _progressEmitter = new vscode.EventEmitter<{
@@ -31,25 +31,25 @@ export class CodeIndexManager implements ICodeIndexManager {
     private _fileWatcher: IFileWatcher | null = null;
     private _fileWatcherSubscriptions: vscode.Disposable[] = [];
     private _isProcessing: boolean = false;
-    
+
     // Dependencies
     private readonly workspacePath: string;
     private readonly context: vscode.ExtensionContext;
     private openAiOptions?: ApiHandlerOptions;
     private qdrantUrl?: string;
     private isEnabled: boolean = false;
-    
+
     private _embedder?: IEmbedder;
     private _vectorStore?: IVectorStore;
-    
+
     // Webview provider reference for status updates
     private webviewProvider?: { postMessage: (msg: any) => void };
-    
+
     // Queue for state updates
     private updateQueue: Array<{ type: 'system' | 'file'; payload: any }> = [];
     private isProcessingQueue: boolean = false;
     private returnToIndexedTimer: NodeJS.Timeout | null = null;
-    
+
     /**
      * Private constructor for singleton pattern
      * @param workspacePath Path to the workspace
@@ -59,7 +59,7 @@ export class CodeIndexManager implements ICodeIndexManager {
         this.workspacePath = workspacePath;
         this.context = context;
     }
-    
+
     /**
      * Gets the singleton instance
      * @param workspacePath Path to the workspace
@@ -72,19 +72,23 @@ export class CodeIndexManager implements ICodeIndexManager {
         }
         return CodeIndexManager.instance;
     }
-    
+
+    public static getAnyInstance(): CodeIndexManager | null {
+        return CodeIndexManager.instance;
+    }
+
     /**
      * Event emitted when progress is updated
      */
     public readonly onProgressUpdate = this._progressEmitter.event;
-    
+
     /**
      * Current state of the indexing process
      */
     public get state(): IndexingState {
         return this._systemStatus;
     }
-    
+
     /**
      * Checks if the manager is configured
      * @returns Boolean indicating if the manager is configured
@@ -92,33 +96,33 @@ export class CodeIndexManager implements ICodeIndexManager {
     private isConfigured(): boolean {
         return !!(this.openAiOptions?.openAiNativeApiKey && this.qdrantUrl);
     }
-    
+
     /**
      * Loads configuration from storage
      */
     public async loadConfiguration(): Promise<void> {
         console.log('[CodeIndexManager] Loading configuration...');
-        
+
         const prevEnabled = this.isEnabled;
         const prevConfigured = this.isConfigured() ?? false;
-        
+
         const enabled = this.context.globalState.get<boolean>('codeIndexEnabled', false);
         const openAiKey = this.context.globalState.get<string>('codeIndexOpenAiKey', '');
         const qdrantUrl = this.context.globalState.get<string>('codeIndexQdrantUrl', '');
-        
+
         this.isEnabled = enabled;
         this.openAiOptions = { openAiNativeApiKey: openAiKey };
         this.qdrantUrl = qdrantUrl;
-        
+
         const nowConfigured = this.isConfigured();
-        
+
         // Determine if we need to restart indexing
         const shouldRestart = this.isEnabled && (
             !prevEnabled || // Was disabled, now enabled
             !prevConfigured || // Was not configured, now configured
             (prevConfigured && nowConfigured && this._systemStatus === 'Error') // Was in error state
         );
-        
+
         if (shouldRestart) {
             this._embedder = new OpenAiEmbedder(this.openAiOptions!);
             this._vectorStore = new QdrantVectorStore(this.workspacePath, this.qdrantUrl);
@@ -135,7 +139,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             }
         }
     }
-    
+
     /**
      * Updates configuration
      * @param config Configuration options
@@ -145,7 +149,7 @@ export class CodeIndexManager implements ICodeIndexManager {
         qdrantUrl?: string;
     }): void {
         let configChanged = false;
-        
+
         // Handle OpenAI options update if present
         if (config.openAiOptions) {
             const newKey = config.openAiOptions.openAiNativeApiKey;
@@ -154,7 +158,7 @@ export class CodeIndexManager implements ICodeIndexManager {
                 configChanged = true;
             }
         }
-        
+
         // Handle Qdrant URL update if present
         if (config.qdrantUrl) {
             const newUrl = config.qdrantUrl;
@@ -163,16 +167,16 @@ export class CodeIndexManager implements ICodeIndexManager {
                 configChanged = true;
             }
         }
-        
+
         // Save configuration to global state
         if (configChanged) {
             this.context.globalState.update('codeIndexOpenAiKey', this.openAiOptions?.openAiNativeApiKey || '');
             this.context.globalState.update('codeIndexQdrantUrl', this.qdrantUrl || '');
-            
+
             console.log('[CodeIndexManager] Configuration updated.');
         }
     }
-    
+
     /**
      * Starts the indexing process
      */
@@ -188,7 +192,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             console.warn('[CodeIndexManager] Start rejected: Missing configuration.');
             return;
         }
-        
+
         if (
             this._isProcessing ||
             (this._systemStatus !== 'Standby' && this._systemStatus !== 'Error' && this._systemStatus !== 'Indexed')
@@ -196,12 +200,12 @@ export class CodeIndexManager implements ICodeIndexManager {
             console.warn(`[CodeIndexManager] Start rejected: Already processing or in state ${this._systemStatus}.`);
             return;
         }
-        
+
         this._isProcessing = true;
-        
+
         // Stop existing watcher if any
         this.stopWatcher();
-        
+
         // Initialize vector store
         try {
             // Ensure client is initialized
@@ -214,19 +218,19 @@ export class CodeIndexManager implements ICodeIndexManager {
                     );
                 }
             }
-            
+
             // Initialize embedder if needed
             if (!this._embedder && this.isConfigured()) {
                 this._embedder = new OpenAiEmbedder(this.openAiOptions!);
             }
-            
+
             const collectionCreated = await this._vectorStore.initialize();
-            
+
             if (collectionCreated) {
                 await this._resetCacheFile();
                 console.log('[CodeIndexManager] Qdrant collection created; cache file emptied.');
             }
-            
+
             this.enqueueStateUpdate({
                 type: 'system',
                 payload: { systemStatus: 'Indexing', message: 'Qdrant ready. Starting workspace scan...' },
@@ -243,7 +247,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             this._isProcessing = false;
             return;
         }
-        
+
         // Scan directory
         try {
             const scanner = new DirectoryScanner(this.workspacePath, {
@@ -251,7 +255,7 @@ export class CodeIndexManager implements ICodeIndexManager {
                 vectorStore: this._vectorStore,
                 context: this.context,
             });
-            
+
             const { stats } = await scanner.scanDirectory({
                 onError: (batchError: Error) => {
                     this.enqueueStateUpdate({
@@ -263,13 +267,13 @@ export class CodeIndexManager implements ICodeIndexManager {
                     });
                 },
             });
-            
+
             console.log(
                 `[CodeIndexManager] Initial scan complete. Processed: ${stats.processed}, Skipped: ${stats.skipped}`,
             );
-            
+
             await this._startWatcher();
-            
+
             this.enqueueStateUpdate({
                 type: 'system',
                 payload: { systemStatus: 'Indexed', message: 'Workspace scan and watcher started.' },
@@ -281,11 +285,11 @@ export class CodeIndexManager implements ICodeIndexManager {
             } catch (cleanupError) {
                 console.error('[CodeIndexManager] Failed to clean up after error:', cleanupError);
             }
-            
+
             // Attempt to clear cache file after scan error
             await this._resetCacheFile();
             console.log('[CodeIndexManager] Cleared cache file due to scan error.');
-            
+
             this.enqueueStateUpdate({
                 type: 'system',
                 payload: {
@@ -298,7 +302,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             this._isProcessing = false;
         }
     }
-    
+
     /**
      * Stops the file watcher
      */
@@ -307,14 +311,14 @@ export class CodeIndexManager implements ICodeIndexManager {
             this._fileWatcher.dispose();
             this._fileWatcher = null;
         }
-        
+
         // Dispose subscriptions
         for (const subscription of this._fileWatcherSubscriptions) {
             subscription.dispose();
         }
         this._fileWatcherSubscriptions = [];
     }
-    
+
     /**
      * Clears the index
      */
@@ -323,15 +327,15 @@ export class CodeIndexManager implements ICodeIndexManager {
             console.warn('[CodeIndexManager] Clear rejected: Already processing.');
             return;
         }
-        
+
         this._isProcessing = true;
         this.stopWatcher();
-        
+
         this.enqueueStateUpdate({
             type: 'system',
             payload: { systemStatus: 'Indexing', message: 'Clearing index data...' },
         });
-        
+
         try {
             // Clear Qdrant collection
             try {
@@ -339,7 +343,7 @@ export class CodeIndexManager implements ICodeIndexManager {
                 if (!this._vectorStore && this.isConfigured()) {
                     this._vectorStore = new QdrantVectorStore(this.workspacePath, this.qdrantUrl);
                 }
-                
+
                 if (this._vectorStore) {
                     await this._vectorStore.clearCollection();
                     console.log('[CodeIndexManager] Vector collection cleared.');
@@ -356,11 +360,11 @@ export class CodeIndexManager implements ICodeIndexManager {
                     },
                 });
             }
-            
+
             // Delete cache file
             await this._resetCacheFile();
             console.log('[CodeIndexManager] Cache file emptied.');
-            
+
             // If no errors occurred during clearing, confirm success
             if (this._systemStatus !== 'Error') {
                 this.enqueueStateUpdate({
@@ -376,7 +380,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             this._isProcessing = false;
         }
     }
-    
+
     /**
      * Searches the index
      * @param query Query string
@@ -387,12 +391,12 @@ export class CodeIndexManager implements ICodeIndexManager {
         if (!this.isEnabled || !this.isConfigured()) {
             throw new Error('Code index feature is disabled or not configured.');
         }
-        
+
         if (this._systemStatus !== 'Indexed' && this._systemStatus !== 'Indexing') {
             // Allow search during Indexing too
             throw new Error(`Code index is not ready for search. Current state: ${this._systemStatus}`);
         }
-        
+
         if (!this._embedder || !this._vectorStore) {
             // Attempt to initialize if needed
             if (this.isConfigured()) {
@@ -402,15 +406,15 @@ export class CodeIndexManager implements ICodeIndexManager {
                 throw new Error('Code index components could not be initialized - configuration missing.');
             }
         }
-        
+
         try {
             const embeddingResponse = await this._embedder.createEmbeddings([query]);
             const vector = embeddingResponse.embeddings[0];
-            
+
             if (!vector) {
                 throw new Error('Failed to generate embedding for query.');
             }
-            
+
             const results = await this._vectorStore.search(vector, limit);
             return results;
         } catch (error) {
@@ -422,7 +426,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             throw error;
         }
     }
-    
+
     /**
      * Sets the webview provider for status updates
      * @param provider Webview provider
@@ -430,7 +434,7 @@ export class CodeIndexManager implements ICodeIndexManager {
     public setWebviewProvider(provider: { postMessage: (msg: any) => void }): void {
         this.webviewProvider = provider;
     }
-    
+
     /**
      * Enqueues a state update
      * @param request Update request
@@ -439,7 +443,7 @@ export class CodeIndexManager implements ICodeIndexManager {
         this.updateQueue.push(request);
         this.processUpdateQueue();
     }
-    
+
     /**
      * Processes the update queue
      */
@@ -447,23 +451,23 @@ export class CodeIndexManager implements ICodeIndexManager {
         if (this.isProcessingQueue || this.updateQueue.length === 0) {
             return;
         }
-        
+
         this.isProcessingQueue = true;
-        
+
         try {
             while (this.updateQueue.length > 0) {
                 const update = this.updateQueue.shift()!;
-                
+
                 if (update.type === 'system') {
                     this._systemStatus = update.payload.systemStatus;
-                    
+
                     // Emit progress update
                     this._progressEmitter.fire({
                         systemStatus: this._systemStatus,
                         fileStatuses: this._fileStatuses,
                         message: update.payload.message,
                     });
-                    
+
                     // Send to webview if available
                     if (this.webviewProvider) {
                         this.webviewProvider.postMessage({
@@ -474,14 +478,14 @@ export class CodeIndexManager implements ICodeIndexManager {
                     }
                 } else if (update.type === 'file') {
                     const { filePath, fileStatus, message } = update.payload;
-                    
+
                     if (fileStatus === 'Processing') {
                         this._fileStatuses[filePath] = fileStatus;
                     } else {
                         // Remove completed files from status tracking
                         delete this._fileStatuses[filePath];
                     }
-                    
+
                     // Emit progress update
                     this._progressEmitter.fire({
                         systemStatus: this._systemStatus,
@@ -494,7 +498,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             this.isProcessingQueue = false;
         }
     }
-    
+
     /**
      * Starts the file watcher
      */
@@ -503,7 +507,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             console.log('[CodeIndexManager] File watcher already running.');
             return;
         }
-        
+
         // Ensure embedder and client are initialized before starting watcher
         if (!this._embedder || !this._vectorStore) {
             if (this.isConfigured()) {
@@ -517,28 +521,28 @@ export class CodeIndexManager implements ICodeIndexManager {
                 return;
             }
         }
-        
+
         this.enqueueStateUpdate({
             type: 'system',
             payload: { systemStatus: 'Indexing', message: 'Initializing file watcher...' },
         });
-        
+
         this._fileWatcher = new FileWatcher(
             this.workspacePath,
             this.context,
             this._embedder,
             this._vectorStore,
         );
-        
+
         await this._fileWatcher.initialize();
-        
+
         this._fileWatcherSubscriptions = [
             this._fileWatcher.onDidStartProcessing((filePath: string) => {
                 if (this.returnToIndexedTimer) {
                     clearTimeout(this.returnToIndexedTimer);
                     this.returnToIndexedTimer = null;
                 }
-                
+
                 this.updateQueue.push({
                     type: 'system',
                     payload: {
@@ -546,7 +550,7 @@ export class CodeIndexManager implements ICodeIndexManager {
                         message: `Processing file change: ${filePath}`,
                     },
                 });
-                
+
                 this.updateQueue.push({
                     type: 'file',
                     payload: {
@@ -555,21 +559,21 @@ export class CodeIndexManager implements ICodeIndexManager {
                         message: `Processing file: ${path.basename(filePath)}`,
                     },
                 });
-                
+
                 this.processUpdateQueue();
             }),
-            
+
             this._fileWatcher.onDidFinishProcessing((result: { path: string; status: string; error?: Error }) => {
                 // Remove from file statuses
                 delete this._fileStatuses[result.path];
-                
+
                 // If there are no more files being processed, return to Indexed state
                 if (Object.keys(this._fileStatuses).length === 0 && this._systemStatus === 'Indexing') {
                     // Use a small delay to avoid flickering if multiple files are processed in quick succession
                     if (this.returnToIndexedTimer) {
                         clearTimeout(this.returnToIndexedTimer);
                     }
-                    
+
                     this.returnToIndexedTimer = setTimeout(() => {
                         this.enqueueStateUpdate({
                             type: 'system',
@@ -581,7 +585,7 @@ export class CodeIndexManager implements ICodeIndexManager {
                         this.returnToIndexedTimer = null;
                     }, 500);
                 }
-                
+
                 // If there was an error, log it
                 if (result.status === 'error' && result.error) {
                     console.error(`[CodeIndexManager] Error processing file ${result.path}:`, result.error);
@@ -589,7 +593,7 @@ export class CodeIndexManager implements ICodeIndexManager {
             }),
         ];
     }
-    
+
     /**
      * Resets the cache file
      */

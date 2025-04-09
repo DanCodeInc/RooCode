@@ -25,7 +25,7 @@ export class DirectoryScanner implements IDirectoryScanner {
     private vectorStore?: IVectorStore;
     private context?: vscode.ExtensionContext;
     private ignoreController: RooIgnoreController;
-    
+
     /**
      * Creates a new directory scanner
      * @param directoryPath Path to the directory to scan
@@ -45,7 +45,7 @@ export class DirectoryScanner implements IDirectoryScanner {
         this.context = options?.context;
         this.ignoreController = options?.ignoreController || new RooIgnoreController(directoryPath);
     }
-    
+
     /**
      * Scans a directory for code blocks
      * @param options Optional scanning options
@@ -65,35 +65,44 @@ export class DirectoryScanner implements IDirectoryScanner {
         if (this.vectorStore) {
             await this.vectorStore.initialize();
         }
-        
+
         // Get all files in the directory
-        const files = await listFiles(this.directoryPath, {
-            ignoreController: this.ignoreController,
-            includePatterns: Object.keys(extensions).map(ext => `**/*${ext}`),
+        const [files] = await listFiles(this.directoryPath, true, 1000);
+
+        // Filter files based on ignore rules and patterns
+        const filteredFiles = files.filter(file => {
+            // Check if file should be ignored
+            if (!this.ignoreController.validateAccess(file)) {
+                return false;
+            }
+
+            // Check if file matches any of the supported extensions
+            const ext = path.extname(file);
+            return Object.keys(extensions).some(supportedExt => ext.endsWith(supportedExt));
         });
-        
+
         // Initialize cache
         const cacheKey = `code-index-cache-${createHash('sha256').update(this.directoryPath).digest('hex')}`;
         const fileHashes: Record<string, string> = this.context?.globalState.get(cacheKey, {}) || {};
         const newHashes: Record<string, string> = {};
-        
+
         // Process files
         const stats = { processed: 0, skipped: 0 };
         const allCodeBlocks: CodeBlock[] = [];
-        
+
         // Process files in batches
         const batches: string[][] = [];
-        for (let i = 0; i < files.length; i += BATCH_SIZE) {
-            batches.push(files.slice(i, i + BATCH_SIZE));
+        for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
+            batches.push(filteredFiles.slice(i, i + BATCH_SIZE));
         }
-        
+
         let batchIndex = 0;
         for (const batch of batches) {
             // Process batch
             const batchFileInfos: { filePath: string; fileHash: string }[] = [];
             const batchBlocks: CodeBlock[] = [];
             const batchTexts: string[] = [];
-            
+
             // Process each file in the batch
             for (const filePath of batch) {
                 try {
@@ -103,25 +112,25 @@ export class DirectoryScanner implements IDirectoryScanner {
                         stats.skipped++;
                         continue;
                     }
-                    
+
                     // Parse file
                     const blocks = await codeParser.parseFile(filePath);
-                    
+
                     if (blocks.length > 0) {
                         const fileHash = blocks[0].fileHash;
-                        
+
                         // Check if file has changed
                         if (fileHashes[filePath] === fileHash) {
                             stats.skipped++;
                             newHashes[filePath] = fileHash;
                             continue;
                         }
-                        
+
                         // Add blocks to batch
                         batchBlocks.push(...blocks);
                         batchTexts.push(...blocks.map(block => block.content));
                         batchFileInfos.push({ filePath, fileHash });
-                        
+
                         // Add blocks to result
                         allCodeBlocks.push(...blocks);
                         stats.processed++;
@@ -131,24 +140,24 @@ export class DirectoryScanner implements IDirectoryScanner {
                 } catch (error) {
                     console.error(`Error processing file ${filePath}:`, error);
                     stats.skipped++;
-                    
+
                     if (options?.onError) {
                         options.onError(error as Error);
                     }
                 }
             }
-            
+
             // Update progress
             if (options?.onProgress) {
-                options.onProgress((batchIndex + 1) * BATCH_SIZE, files.length);
+                options.onProgress((batchIndex + 1) * BATCH_SIZE, filteredFiles.length);
             }
-            
+
             // Process batch with embedder and vector store
             if (this.embedder && this.vectorStore && batchBlocks.length > 0) {
                 let success = false;
                 let attempts = 0;
                 let lastError: Error | null = null;
-                
+
                 while (attempts < MAX_BATCH_RETRIES && !success) {
                     attempts++;
                     try {
@@ -157,19 +166,19 @@ export class DirectoryScanner implements IDirectoryScanner {
                         for (const filePath of uniqueFilePaths) {
                             await this.vectorStore.deletePointsByFilePath(filePath);
                         }
-                        
+
                         // Create embeddings
                         const { embeddings } = await this.embedder.createEmbeddings(batchTexts);
-                        
+
                         // Prepare points
                         const points = batchBlocks.map((block, index) => {
                             const workspaceRoot = getWorkspacePath();
                             const absolutePath = path.resolve(workspaceRoot, block.file_path);
                             const normalizedAbsolutePath = path.normalize(absolutePath);
-                            
+
                             const stableName = `${normalizedAbsolutePath}:${block.start_line}`;
                             const pointId = uuidv5(stableName, QDRANT_CODE_BLOCK_NAMESPACE);
-                            
+
                             return {
                                 id: pointId,
                                 vector: embeddings[index],
@@ -181,40 +190,40 @@ export class DirectoryScanner implements IDirectoryScanner {
                                 },
                             };
                         });
-                        
+
                         // Upsert points
                         await this.vectorStore.upsertPoints(points);
-                        
+
                         // Update hashes
                         for (const fileInfo of batchFileInfos) {
                             newHashes[fileInfo.filePath] = fileInfo.fileHash;
                         }
-                        
+
                         success = true;
                     } catch (error) {
                         lastError = error as Error;
                         console.error(`Error processing batch (attempt ${attempts}):`, error);
-                        
+
                         if (attempts < MAX_BATCH_RETRIES) {
                             const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempts - 1);
                             await new Promise(resolve => setTimeout(resolve, delay));
                         }
                     }
                 }
-                
+
                 if (!success && lastError && options?.onError) {
                     options.onError(lastError);
                 }
             }
-            
+
             batchIndex++;
         }
-        
+
         // Update cache
         if (this.context) {
             await this.context.globalState.update(cacheKey, newHashes);
         }
-        
+
         return { codeBlocks: allCodeBlocks, stats };
     }
 }

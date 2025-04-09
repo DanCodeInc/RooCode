@@ -19,20 +19,20 @@ export class FileWatcher implements IFileWatcher {
     private ignoreController: RooIgnoreController;
     private cachePath: vscode.Uri;
     private fileHashes: Record<string, string> = {};
-    
+
     private readonly _onDidStartProcessing = new vscode.EventEmitter<string>();
     private readonly _onDidFinishProcessing = new vscode.EventEmitter<FileProcessingResult>();
-    
+
     /**
      * Event emitted when a file starts processing
      */
     public readonly onDidStartProcessing = this._onDidStartProcessing.event;
-    
+
     /**
      * Event emitted when a file finishes processing
      */
     public readonly onDidFinishProcessing = this._onDidFinishProcessing.event;
-    
+
     /**
      * Creates a new file watcher
      * @param workspacePath Path to the workspace
@@ -47,13 +47,13 @@ export class FileWatcher implements IFileWatcher {
         private vectorStore?: IVectorStore,
     ) {
         this.ignoreController = new RooIgnoreController(workspacePath);
-        
+
         this.cachePath = vscode.Uri.joinPath(
             context.globalStorageUri,
             `roo-index-cache-${createHash('sha256').update(workspacePath).digest('hex')}.json`,
         );
     }
-    
+
     /**
      * Initializes the file watcher
      */
@@ -66,17 +66,17 @@ export class FileWatcher implements IFileWatcher {
             console.log('No cache file found or error reading cache, starting fresh');
             this.fileHashes = {};
         }
-        
+
         // Create file watcher
         const filePattern = new vscode.RelativePattern(this.workspacePath, `**/*{${Object.keys(extensions).join(',')}}`);
         this.fileWatcher = vscode.workspace.createFileSystemWatcher(filePattern);
-        
+
         // Register event handlers
         this.fileWatcher.onDidCreate(this.handleFileCreated.bind(this));
         this.fileWatcher.onDidChange(this.handleFileChanged.bind(this));
         this.fileWatcher.onDidDelete(this.handleFileDeleted.bind(this));
     }
-    
+
     /**
      * Disposes the file watcher
      */
@@ -85,7 +85,7 @@ export class FileWatcher implements IFileWatcher {
         this._onDidStartProcessing.dispose();
         this._onDidFinishProcessing.dispose();
     }
-    
+
     /**
      * Handles file creation events
      * @param uri URI of the created file
@@ -93,7 +93,7 @@ export class FileWatcher implements IFileWatcher {
     private async handleFileCreated(uri: vscode.Uri): Promise<void> {
         await this.processFile(uri.fsPath);
     }
-    
+
     /**
      * Handles file change events
      * @param uri URI of the changed file
@@ -101,20 +101,20 @@ export class FileWatcher implements IFileWatcher {
     private async handleFileChanged(uri: vscode.Uri): Promise<void> {
         await this.processFile(uri.fsPath);
     }
-    
+
     /**
      * Handles file deletion events
      * @param uri URI of the deleted file
      */
     private async handleFileDeleted(uri: vscode.Uri): Promise<void> {
         const filePath = uri.fsPath;
-        
+
         // Delete from cache
         if (this.fileHashes[filePath]) {
             delete this.fileHashes[filePath];
             await this.saveCache();
         }
-        
+
         // Delete from vector store
         if (this.vectorStore) {
             try {
@@ -125,7 +125,7 @@ export class FileWatcher implements IFileWatcher {
             }
         }
     }
-    
+
     /**
      * Processes a file
      * @param filePath Path to the file to process
@@ -133,10 +133,10 @@ export class FileWatcher implements IFileWatcher {
      */
     async processFile(filePath: string): Promise<FileProcessingResult> {
         this._onDidStartProcessing.fire(filePath);
-        
+
         try {
             // Check if file should be ignored
-            if (this.ignoreController.shouldIgnore(filePath)) {
+            if (!this.ignoreController.validateAccess(filePath)) {
                 const result = {
                     path: filePath,
                     status: 'skipped' as const,
@@ -145,7 +145,7 @@ export class FileWatcher implements IFileWatcher {
                 this._onDidFinishProcessing.fire(result);
                 return result;
             }
-            
+
             // Check file size
             const fileStat = await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
             if (fileStat.size > MAX_FILE_SIZE_BYTES) {
@@ -157,14 +157,14 @@ export class FileWatcher implements IFileWatcher {
                 this._onDidFinishProcessing.fire(result);
                 return result;
             }
-            
+
             // Read file content
             const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
             const content = fileContent.toString();
-            
+
             // Calculate hash
             const newHash = createHash('sha256').update(content).digest('hex');
-            
+
             // Check if file has changed
             if (this.fileHashes[filePath] === newHash) {
                 const result = {
@@ -175,7 +175,7 @@ export class FileWatcher implements IFileWatcher {
                 this._onDidFinishProcessing.fire(result);
                 return result;
             }
-            
+
             // Delete old points
             if (this.vectorStore) {
                 try {
@@ -186,23 +186,23 @@ export class FileWatcher implements IFileWatcher {
                     throw error;
                 }
             }
-            
+
             // Parse file
             const blocks = await codeParser.parseFile(filePath, { content, fileHash: newHash });
-            
+
             // Create embeddings and upsert points
             if (this.embedder && this.vectorStore && blocks.length > 0) {
                 const texts = blocks.map(block => block.content);
                 const { embeddings } = await this.embedder.createEmbeddings(texts);
-                
+
                 const workspaceRoot = getWorkspacePath();
                 const points = blocks.map((block, index) => {
                     const absolutePath = path.resolve(workspaceRoot, block.file_path);
                     const normalizedAbsolutePath = path.normalize(absolutePath);
-                    
+
                     const stableName = `${normalizedAbsolutePath}:${block.start_line}`;
                     const pointId = uuidv5(stableName, QDRANT_CODE_BLOCK_NAMESPACE);
-                    
+
                     return {
                         id: pointId,
                         vector: embeddings[index],
@@ -214,14 +214,14 @@ export class FileWatcher implements IFileWatcher {
                         },
                     };
                 });
-                
+
                 await this.vectorStore.upsertPoints(points);
             }
-            
+
             // Update cache
             this.fileHashes[filePath] = newHash;
             await this.saveCache();
-            
+
             const result = {
                 path: filePath,
                 status: 'success' as const,
@@ -238,7 +238,7 @@ export class FileWatcher implements IFileWatcher {
             return result;
         }
     }
-    
+
     /**
      * Saves the cache to disk
      */

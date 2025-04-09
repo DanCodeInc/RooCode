@@ -18,7 +18,7 @@ import { initializeI18n } from "./i18n"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
-import { CodeIndexManager } from "./services/code-index/manager"
+import { CodeIndexManager } from "./services/code-index"
 import { McpServerManager } from "./services/mcp/McpServerManager"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { TerminalRegistry } from "./integrations/terminal/TerminalRegistry"
@@ -46,9 +46,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel("Roo-Code")
 	context.subscriptions.push(outputChannel)
 
-	const codeIndexManager = CodeIndexManager.getInstance(context)
-	context.subscriptions.push(codeIndexManager)
-	await codeIndexManager.loadConfiguration()
+	// Code Index manager
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	if (workspacePath) {
+		const codeIndexManager = CodeIndexManager.getInstance(workspacePath, context)
+		context.subscriptions.push(codeIndexManager as unknown as vscode.Disposable)
+		await codeIndexManager.loadConfiguration()
+	}
 	outputChannel.appendLine("Roo-Code extension activated")
 
 	// Migrate old settings to new
@@ -69,6 +73,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize global state if not already set.
 	if (!context.globalState.get("allowedCommands")) {
 		context.globalState.update("allowedCommands", defaultCommands)
+	}
+
+	// Get the code index manager instance
+	// const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	let codeIndexManager;
+	if (workspacePath) {
+		codeIndexManager = CodeIndexManager.getInstance(workspacePath, context)
 	}
 
 	const provider = new ClineProvider(context, outputChannel, "sidebar", codeIndexManager)
@@ -138,4 +149,14 @@ export async function deactivate() {
 
 	// Clean up terminal handlers
 	TerminalRegistry.cleanup()
+
+	// Dispose of Code Index Manager
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	if (workspacePath) {
+		const codeIndexManager = CodeIndexManager.getInstance(workspacePath, extensionContext)
+		// Check if the manager has a dispose method
+		if ('dispose' in codeIndexManager) {
+			await (codeIndexManager as any).dispose()
+		}
+	}
 }

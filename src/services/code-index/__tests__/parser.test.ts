@@ -1,11 +1,22 @@
-import { readFile } from "fs/promises"
-import { parseCodeFileByQueries } from "../parser"
+import { readFile } from 'fs/promises';
+import { createHash } from 'crypto';
+import { parseCodeFileByQueries } from '../parser';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { mockLoadRequiredLanguageParsers } from './mocks/tree-sitter-mock';
 
-// Mock fs/promises
-jest.mock("fs/promises")
-const mockedReadFile = readFile as jest.MockedFunction<typeof readFile>
+// Mock dependencies
+jest.mock('fs/promises');
+const mockedReadFile = jest.mocked(readFile);
+jest.mock('../../tree-sitter/languageParser', () => ({
+    loadRequiredLanguageParsers: mockLoadRequiredLanguageParsers
+}));
+jest.mock('../../tree-sitter/queries', () => ({
+    jsQuery: '(function_declaration) @definition.function_declaration (identifier) @name.function_declaration',
+    tsQuery: '(function_declaration) @definition.function_declaration (identifier) @name.function_declaration (class_declaration) @definition.class_declaration (type_identifier) @name.class_declaration (method_definition) @definition.method_definition (property_identifier) @name.method_definition',
+    pyQuery: '(function_definition) @definition.function_definition (identifier) @name.function_definition (class_definition) @definition.class_definition (identifier) @name.class_definition'
+}));
 
-describe("parseCodeFileByQueries", () => {
+describe('parseCodeFileByQueries', () => {
 	beforeEach(() => {
 		mockedReadFile.mockClear()
 	})

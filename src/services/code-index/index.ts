@@ -1,6 +1,6 @@
 /**
  * Code Index Service
- * 
+ *
  * This service provides code indexing and searching functionality.
  * It uses OpenAI embeddings and Qdrant vector database to index and search code.
  */
@@ -18,8 +18,8 @@ export * from './vector-stores';
 export * from './processors';
 
 // Export manager
-export { CodeIndexManager } from './manager.new';
+export { CodeIndexManager } from './manager';
 
 // Re-export the singleton instance for backward compatibility
-import { CodeIndexManager } from './manager.new';
+import { CodeIndexManager } from './manager';
 export { CodeIndexManager as default };

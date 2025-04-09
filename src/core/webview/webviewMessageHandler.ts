@@ -18,7 +18,8 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import { discoverChromeHostUrl, tryChromeHostUrl } from "../../services/browser/browserDiscovery"
-import { CodeIndexManager, IndexProgressUpdate } from "../../services/code-index/manager"
+import { CodeIndexManager } from "../../services/code-index"
+import { IndexProgressUpdate } from "../../services/code-index/interfaces"
 import { searchWorkspaceFiles } from "../../services/search/file-search"
 import { fileExistsAtPath } from "../../utils/fs"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
@@ -1320,7 +1321,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// Save the state first
 			await updateGlobalState("codeIndexEnabled", enabled)
 			// Get manager instance
-			const manager = CodeIndexManager.getInstance(provider.context)
+			const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+			if (!workspacePath) {
+				provider.log("No workspace folder found for code indexing")
+				break
+			}
+			const manager = CodeIndexManager.getInstance(workspacePath, provider.context)
 			// Get related state AFTER saving the current value
 			const { codeIndexOpenAiKey, codeIndexQdrantUrl } = await provider.getState()
 
@@ -1343,7 +1349,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// Save the state first
 			await updateGlobalState("codeIndexOpenAiKey", newKey)
 			// Get manager instance
-			const manager = CodeIndexManager.getInstance(provider.context)
+			const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+			if (!workspacePath) {
+				provider.log("No workspace folder found for code indexing")
+				break
+			}
+			const manager = CodeIndexManager.getInstance(workspacePath, provider.context)
 			// Get related state AFTER saving the current value
 			const { codeIndexEnabled, codeIndexQdrantUrl } = await provider.getState()
 
@@ -1363,7 +1374,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// Save the state first
 			await updateGlobalState("codeIndexQdrantUrl", newUrl)
 			// Get manager instance
-			const manager = CodeIndexManager.getInstance(provider.context)
+			const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+			if (!workspacePath) {
+				provider.log("No workspace folder found for code indexing")
+				break
+			}
+			const manager = CodeIndexManager.getInstance(workspacePath, provider.context)
 			// Get related state AFTER saving the current value
 			const { codeIndexEnabled, codeIndexOpenAiKey } = await provider.getState()
 
@@ -1379,7 +1395,9 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			break
 		}
 		case "requestIndexingStatus": {
-			const status = provider.codeIndexManager!.getCurrentStatus()
+			// Get the current state from the manager
+			const state = provider.codeIndexManager?.state || 'Standby'
+			const status = { systemStatus: state }
 			provider.postMessageToWebview({
 				type: "indexingStatusUpdate",
 				values: status,
@@ -1418,7 +1436,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		case "clearIndexData": {
 			try {
 				const manager = provider.codeIndexManager!
-				await manager.clearIndexData()
+				await manager.clearIndex()
 				provider.postMessageToWebview({ type: "indexCleared", values: { success: true } })
 			} catch (error) {
 				provider.log(`Error clearing index data: ${error instanceof Error ? error.message : String(error)}`)

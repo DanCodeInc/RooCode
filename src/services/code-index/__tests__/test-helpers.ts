@@ -60,13 +60,15 @@ export function createMockExtensionContext() {
         globalState: {
             get: jest.fn(),
             update: jest.fn().mockImplementation(() => Promise.resolve()),
-            setKeysForSync: jest.fn()
+            setKeysForSync: jest.fn(),
+            keys: jest.fn().mockReturnValue([''] as readonly string[])
         },
         subscriptions: [],
         workspaceState: {
             get: jest.fn(),
             update: jest.fn().mockImplementation(() => Promise.resolve()),
-            setKeysForSync: jest.fn()
+            setKeysForSync: jest.fn(),
+            keys: jest.fn().mockReturnValue([''] as readonly string[])
         },
         extensionPath: '',
         storagePath: '',
@@ -77,7 +79,39 @@ export function createMockExtensionContext() {
         logUri: {} as any,
         storageUri: {} as any,
         asAbsolutePath: jest.fn().mockImplementation((path) => path),
-        extensionMode: 1 // Development mode
+        extensionMode: 1, // Development mode
+        // Add missing properties required by VS Code ExtensionContext
+        secrets: {
+            get: jest.fn().mockImplementation(() => Promise.resolve('')),
+            store: jest.fn().mockImplementation(() => Promise.resolve()),
+            delete: jest.fn().mockImplementation(() => Promise.resolve()),
+            onDidChange: { event: jest.fn(), dispose: jest.fn() } as any
+        },
+        environmentVariableCollection: {
+            persistent: false,
+            replace: jest.fn(),
+            append: jest.fn(),
+            prepend: jest.fn(),
+            get: jest.fn(),
+            forEach: jest.fn(),
+            delete: jest.fn(),
+            clear: jest.fn()
+        },
+        extension: {
+            id: 'test-extension',
+            extensionUri: {} as any,
+            extensionPath: '',
+            isActive: true,
+            packageJSON: {},
+            exports: undefined,
+            activate: jest.fn().mockImplementation(() => Promise.resolve())
+        },
+        languageModelAccessInformation: {
+            current: {
+                endpoint: '',
+                authHeader: ''
+            }
+        }
     };
 }
 

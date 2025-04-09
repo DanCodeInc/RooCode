@@ -38,7 +38,7 @@ import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { McpServerManager } from "../../services/mcp/McpServerManager"
 import { ShadowCheckpointService } from "../../services/checkpoints/ShadowCheckpointService"
-import type { IndexProgressUpdate } from "../../services/code-index/manager"
+import type { IndexProgressUpdate } from "../../services/code-index/interfaces"
 import { fileExistsAtPath } from "../../utils/fs"
 import { setSoundEnabled } from "../../utils/sound"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
@@ -89,7 +89,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
 		private readonly renderContext: "sidebar" | "editor" = "sidebar",
-		public readonly codeIndexManager?: import("../../services/code-index/manager").CodeIndexManager,
+		public readonly codeIndexManager?: import("../../services/code-index").ICodeIndexManager,
 	) {
 		super()
 

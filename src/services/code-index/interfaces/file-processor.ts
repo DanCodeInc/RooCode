@@ -29,7 +29,7 @@ export interface IDirectoryScanner {
      * @param options Optional scanning options
      * @returns Promise resolving to scan results
      */
-    scanDirectory(directoryPath: string, options?: {
+    scanDirectory(options?: {
         onProgress?: (processed: number, total: number) => void;
         onError?: (error: Error) => void;
     }): Promise<{

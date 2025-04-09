@@ -21,7 +21,7 @@ import { McpHub } from "../../../services/mcp/McpHub"
 import { Mode, ModeConfig, getModeConfig, isToolAllowedForMode, getGroupName } from "../../../shared/modes"
 import { ToolName, TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS } from "../../../shared/tool-groups"
 import { ToolArgs } from "./types"
-import { CodeIndexManager } from "../../../services/code-index/manager"
+import { ICodeIndexManager } from "../../../services/code-index/interfaces"
 
 // Map of tool names to their description functions
 const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined> = {
@@ -46,17 +46,17 @@ const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined>
 		args.diffStrategy ? args.diffStrategy.getToolDescription({ cwd: args.cwd, toolOptions: args.toolOptions }) : "",
 }
 
-export function getToolDescriptionsForMode(
+export async function getToolDescriptionsForMode(
 	mode: Mode,
 	cwd: string,
 	supportsComputerUse: boolean,
-	codeIndexManager: CodeIndexManager,
+	codeIndexManager: ICodeIndexManager,
 	diffStrategy?: DiffStrategy,
 	browserViewportSize?: string,
 	mcpHub?: McpHub,
 	customModes?: ModeConfig[],
 	experiments?: Record<string, boolean>,
-): string {
+): Promise<string> {
 	const config = getModeConfig(mode, customModes)
 	const args: ToolArgs = {
 		cwd,
@@ -85,7 +85,16 @@ export function getToolDescriptionsForMode(
 	ALWAYS_AVAILABLE_TOOLS.forEach((tool) => tools.add(tool))
 
 	// Conditionally exclude codebase_search if feature is disabled or not configured
-	if (!(codeIndexManager.isFeatureEnabled && codeIndexManager.isFeatureConfigured)) {
+	let codeIndexEnabled = true;
+	try {
+		// Try to search with an empty query to check if the feature is available
+		// This will throw an error if the feature is disabled or not configured
+		await codeIndexManager.searchIndex("", 1);
+	} catch (error) {
+		codeIndexEnabled = false;
+	}
+
+	if (!codeIndexEnabled) {
 		tools.delete("codebase_search")
 	}
 

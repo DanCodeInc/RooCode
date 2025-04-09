@@ -2,20 +2,31 @@ import { OpenAiEmbedder } from '../embedders/openai-embedder';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { OpenAI } from 'openai';
 
+// Import test helpers
+import { createOpenAIEmbeddingsMock } from './test-helpers';
+
 // Mock dependencies
-jest.mock('openai');
+jest.mock('openai', () => {
+    return {
+        OpenAI: jest.fn().mockImplementation(() => ({
+            embeddings: {
+                create: createOpenAIEmbeddingsMock()
+            }
+        }))
+    };
+});
 
 describe('OpenAiEmbedder', () => {
     let embedder: OpenAiEmbedder;
-    
+
     beforeEach(() => {
         // Reset mocks
         jest.resetAllMocks();
-        
+
         // Create embedder with mock options
         embedder = new OpenAiEmbedder({ openAiNativeApiKey: 'test-key' });
     });
-    
+
     describe('createEmbeddings', () => {
         it('should create embeddings successfully', async () => {
             // Arrange
@@ -30,13 +41,13 @@ describe('OpenAiEmbedder', () => {
                     total_tokens: 20
                 }
             };
-            
-            // Mock OpenAI client
-            (OpenAI.prototype.embeddings.create as jest.Mock).mockResolvedValue(mockResponse);
-            
+
+            // Mock OpenAI client - use any to bypass type checking
+            (OpenAI.prototype.embeddings.create as any).mockResolvedValue(mockResponse);
+
             // Act
             const result = await embedder.createEmbeddings(texts);
-            
+
             // Assert
             expect(result).toEqual({
                 embeddings: [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
@@ -50,26 +61,26 @@ describe('OpenAiEmbedder', () => {
                 model: 'text-embedding-3-small'
             });
         });
-        
+
         it('should handle API errors', async () => {
             // Arrange
             const texts = ['test text'];
             const error = new Error('API error');
-            
-            // Mock OpenAI client
-            (OpenAI.prototype.embeddings.create as jest.Mock).mockRejectedValue(error);
-            
+
+            // Mock OpenAI client - use any to bypass type checking
+            (OpenAI.prototype.embeddings.create as any).mockRejectedValue(error);
+
             // Mock console.error to avoid polluting test output
-            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-            
+            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
             // Act & Assert
             await expect(embedder.createEmbeddings(texts)).rejects.toThrow('Failed to create embeddings');
             expect(consoleErrorSpy).toHaveBeenCalled();
-            
+
             // Restore console.error
             consoleErrorSpy.mockRestore();
         });
-        
+
         it('should use custom model if provided', async () => {
             // Arrange
             const texts = ['test text'];
@@ -81,13 +92,13 @@ describe('OpenAiEmbedder', () => {
                     total_tokens: 10
                 }
             };
-            
-            // Mock OpenAI client
-            (OpenAI.prototype.embeddings.create as jest.Mock).mockResolvedValue(mockResponse);
-            
+
+            // Mock OpenAI client - use any to bypass type checking
+            (OpenAI.prototype.embeddings.create as any).mockResolvedValue(mockResponse);
+
             // Act
             await embedder.createEmbeddings(texts, customModel);
-            
+
             // Assert
             expect(OpenAI.prototype.embeddings.create).toHaveBeenCalledWith({
                 input: texts,

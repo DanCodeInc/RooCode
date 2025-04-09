@@ -2,11 +2,11 @@ import * as vscode from "vscode"
 import { Cline } from "../Cline"
 import { ToolUse } from "../assistant-message"
 import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
-import { CodeIndexManager } from "../../services/code-index/manager"
+import { CodeIndexManager } from "../../services/code-index"
 import { getWorkspacePath } from "../../utils/path"
 import { formatResponse } from "../prompts/responses"
 import { t } from "../../i18n"
-import { QdrantSearchResult } from "../../services/code-index/types"
+import { QdrantSearchResult } from "../../services/code-index/interfaces"
 
 export async function codebaseSearchTool(
 	cline: Cline,
@@ -78,64 +78,58 @@ export async function codebaseSearchTool(
 			throw new Error("Extension context is not available.")
 		}
 
-		const manager = CodeIndexManager.getInstance(context)
-
-		// Check if indexing is enabled and configured (using assumed properties/methods)
-		// @ts-expect-error Accessing private member _isEnabled
-		const isEnabled = manager.isEnabled ?? true // Assume enabled if property doesn't exist
-		// @ts-expect-error Accessing private member _isConfigured
-		const isConfigured = manager.isConfigured ? manager.isConfigured() : true // Assume configured if method doesn't exist
-
-		if (!isEnabled) {
-			throw new Error("Code Indexing is disabled in the settings.")
-		}
-		if (!isConfigured) {
-			throw new Error("Code Indexing is not configured (Missing OpenAI Key or Qdrant URL).")
+		const workspacePath = getWorkspacePath()
+		if (!workspacePath) {
+			throw new Error("Workspace path is not available.")
 		}
 
-		const searchResults: QdrantSearchResult[] = await manager.searchIndex(query, limit)
+		const manager = CodeIndexManager.getInstance(workspacePath, context)
 
-		// 3. Format and push results
-		if (!searchResults || searchResults.length === 0) {
-			pushToolResult(`No relevant code snippets found for the query: "${query}"`) // Use simple string for no results
-			return
-		}
+		try {
+			// If searchIndex throws an error about being disabled or not configured, we'll catch it
+			const searchResults: QdrantSearchResult[] = await manager.searchIndex(query, limit)
 
-		const jsonResult = {
-			query,
-			results: [],
-		} as {
-			query: string
-			results: Array<{
-				filePath: string
-				score: number
-				startLine: number
-				endLine: number
-				codeChunk: string
-			}>
-		}
+			// 3. Format and push results
+			if (!searchResults || searchResults.length === 0) {
+				pushToolResult(`No relevant code snippets found for the query: "${query}"`) // Use simple string for no results
+				return
+			}
 
-		searchResults.forEach((result) => {
-			if (!result.payload) return
-			if (!("filePath" in result.payload)) return
+			const jsonResult = {
+				query,
+				results: [],
+			} as {
+				query: string
+				results: Array<{
+					filePath: string
+					score: number
+					startLine: number
+					endLine: number
+					codeChunk: string
+				}>
+			}
 
-			const relativePath = vscode.workspace.asRelativePath(result.payload.filePath, false)
+			searchResults.forEach((result) => {
+				if (!result.payload) return
+				if (!("filePath" in result.payload)) return
 
-			jsonResult.results.push({
-				filePath: relativePath,
-				score: result.score,
-				startLine: result.payload.startLine,
-				endLine: result.payload.endLine,
-				codeChunk: result.payload.codeChunk.trim(),
+				const relativePath = vscode.workspace.asRelativePath(result.payload.filePath, false)
+
+				jsonResult.results.push({
+					filePath: relativePath,
+					score: result.score,
+					startLine: result.payload.startLine,
+					endLine: result.payload.endLine,
+					codeChunk: result.payload.codeChunk.trim(),
+				})
 			})
-		})
 
-		// Send results to UI
-		const payload = { tool: toolName, content: jsonResult }
-		await cline.say("tool", JSON.stringify(payload))
+			// Send results to UI
+			const payload = { tool: toolName, content: jsonResult }
+			await cline.say("tool", JSON.stringify(payload))
 
-		// Push results to AI
-		const output = `Query: ${query}
+			// Push results to AI
+			const output = `Query: ${query}
 Results:
 
 ${jsonResult.results
@@ -148,7 +142,14 @@ Code Chunk: ${result.codeChunk}
 	)
 	.join("\n")}`
 
-		pushToolResult(output)
+			pushToolResult(output)
+		} catch (error: any) {
+			if (error.message.includes("disabled") || error.message.includes("not configured")) {
+				throw error; // Re-throw to be caught by the outer catch block
+			}
+			// Handle other search-specific errors
+			await handleError(toolName, error)
+		}
 	} catch (error: any) {
 		await handleError(toolName, error) // Use the standard error handler
 	}

@@ -1,18 +1,125 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { CodeIndexManager } from '../manager.new';
-import { OpenAiEmbedder } from '../embedders';
-import { QdrantVectorStore } from '../vector-stores';
-import { DirectoryScanner, FileWatcher } from '../processors';
+import { CodeIndexManager } from '../manager';
+import { OpenAiEmbedder } from '../embedders/openai-embedder';
+import { QdrantVectorStore } from '../vector-stores/qdrant-client';
+import { DirectoryScanner } from '../scanner';
+import { FileWatcher } from '../file-watcher';
 
-// Import test helpers
-import {
-    createMockExtensionContext,
-    createOpenAiEmbedderMock,
-    createQdrantVectorStoreMock,
-    createDirectoryScannerMock,
-    createFileWatcherMock
-} from './test-helpers';
+// Define mocks locally to avoid circular dependencies
+function createOpenAiEmbedderMock() {
+    return jest.fn().mockImplementation(() => ({
+        createEmbeddings: jest.fn().mockImplementation(() => {
+            return {
+                embeddings: [[0.1, 0.2, 0.3]],
+                usage: { prompt_tokens: 10, total_tokens: 20 }
+            };
+        })
+    }));
+}
+
+function createQdrantVectorStoreMock() {
+    return jest.fn().mockImplementation(() => ({
+        initialize: jest.fn().mockImplementation(() => Promise.resolve(false)),
+        search: jest.fn().mockImplementation(() => {
+            return [
+                {
+                    id: 'point1',
+                    score: 0.9,
+                    payload: {
+                        filePath: '/test/file.js',
+                        codeChunk: 'function test() {}',
+                        startLine: 1,
+                        endLine: 3
+                    }
+                }
+            ];
+        }),
+        upsertPoints: jest.fn(),
+        deletePointsByFilePath: jest.fn(),
+        clearCollection: jest.fn()
+    }));
+}
+
+function createDirectoryScannerMock() {
+    return jest.fn().mockImplementation(() => ({
+        scanDirectory: jest.fn().mockImplementation(() => {
+            return {
+                codeBlocks: [],
+                stats: { processed: 5, skipped: 2 }
+            };
+        })
+    }));
+}
+
+function createFileWatcherMock() {
+    return jest.fn().mockImplementation(() => ({
+        initialize: jest.fn().mockImplementation(() => Promise.resolve()),
+        dispose: jest.fn(),
+        onDidStartProcessing: jest.fn(),
+        onDidFinishProcessing: jest.fn(),
+        processFile: jest.fn()
+    }));
+}
+
+function createMockExtensionContext() {
+    return {
+        globalState: {
+            get: jest.fn(),
+            update: jest.fn().mockImplementation(() => Promise.resolve()),
+            setKeysForSync: jest.fn(),
+            keys: jest.fn().mockReturnValue([''] as readonly string[])
+        },
+        subscriptions: [],
+        workspaceState: {
+            get: jest.fn(),
+            update: jest.fn().mockImplementation(() => Promise.resolve()),
+            setKeysForSync: jest.fn(),
+            keys: jest.fn().mockReturnValue([''] as readonly string[])
+        },
+        extensionPath: '',
+        storagePath: '',
+        globalStoragePath: '',
+        logPath: '',
+        extensionUri: {} as any,
+        globalStorageUri: {} as any,
+        logUri: {} as any,
+        storageUri: {} as any,
+        asAbsolutePath: jest.fn().mockImplementation((path) => path),
+        extensionMode: 1, // Development mode
+        secrets: {
+            get: jest.fn().mockImplementation(() => Promise.resolve('')),
+            store: jest.fn().mockImplementation(() => Promise.resolve()),
+            delete: jest.fn().mockImplementation(() => Promise.resolve()),
+            onDidChange: { event: jest.fn(), dispose: jest.fn() } as any
+        },
+        environmentVariableCollection: {
+            persistent: false,
+            replace: jest.fn(),
+            append: jest.fn(),
+            prepend: jest.fn(),
+            get: jest.fn(),
+            forEach: jest.fn(),
+            delete: jest.fn(),
+            clear: jest.fn()
+        },
+        extension: {
+            id: 'test-extension',
+            extensionUri: {} as any,
+            extensionPath: '',
+            isActive: true,
+            packageJSON: {},
+            exports: undefined,
+            activate: jest.fn().mockImplementation(() => Promise.resolve())
+        },
+        languageModelAccessInformation: {
+            current: {
+                endpoint: '',
+                authHeader: ''
+            }
+        }
+    };
+}
 
 // Mock dependencies
 jest.mock('vscode');
@@ -26,12 +133,12 @@ jest.mock('../vector-stores/qdrant-client', () => {
         QdrantVectorStore: createQdrantVectorStoreMock()
     };
 });
-jest.mock('../processors/scanner', () => {
+jest.mock('../scanner', () => {
     return {
         DirectoryScanner: createDirectoryScannerMock()
     };
 });
-jest.mock('../processors/file-watcher', () => {
+jest.mock('../file-watcher', () => {
     return {
         FileWatcher: createFileWatcherMock()
     };
@@ -71,14 +178,44 @@ describe('Code Index Integration', () => {
                     return defaultValue;
                 });
 
-            // Mock vector store initialize
-            (QdrantVectorStore.prototype.initialize as any).mockResolvedValue(false);
+            // Create mock instances
+            const mockQdrantInstance = {
+                initialize: jest.fn().mockResolvedValue(false),
+                search: jest.fn(),
+                upsertPoints: jest.fn(),
+                deletePointsByFilePath: jest.fn(),
+                clearCollection: jest.fn()
+            };
 
-            // Mock scanner
-            (DirectoryScanner.prototype.scanDirectory as any).mockResolvedValue({
-                codeBlocks: [],
-                stats: { processed: 5, skipped: 2 }
-            });
+            const mockEmbedderInstance = {
+                createEmbeddings: jest.fn().mockResolvedValue({
+                    embeddings: [[0.1, 0.2, 0.3]],
+                    usage: { prompt_tokens: 10, total_tokens: 20 }
+                })
+            };
+
+            const mockScannerInstance = {
+                scanDirectory: jest.fn().mockResolvedValue({
+                    codeBlocks: [],
+                    stats: { processed: 5, skipped: 2 }
+                })
+            };
+
+            const mockWatcherInstance = {
+                initialize: jest.fn().mockResolvedValue(undefined),
+                dispose: jest.fn(),
+                onDidStartProcessing: jest.fn(),
+                onDidFinishProcessing: jest.fn(),
+                processFile: jest.fn()
+            };
+
+            // Mock constructors to return our instances
+            (QdrantVectorStore as jest.Mock).mockImplementation(() => mockQdrantInstance);
+            (OpenAiEmbedder as jest.Mock).mockImplementation(() => mockEmbedderInstance);
+            (DirectoryScanner as jest.Mock).mockImplementation(() => mockScannerInstance);
+            (FileWatcher as jest.Mock).mockImplementation(() => mockWatcherInstance);
+
+            // Scanner is already mocked above
 
             // Act
             await manager.loadConfiguration();
@@ -87,11 +224,11 @@ describe('Code Index Integration', () => {
             // Assert
             expect(OpenAiEmbedder).toHaveBeenCalledWith({ openAiNativeApiKey: mockOpenAiKey });
             expect(QdrantVectorStore).toHaveBeenCalledWith('/test/workspace', mockQdrantUrl);
-            expect(QdrantVectorStore.prototype.initialize).toHaveBeenCalled();
+            expect(mockQdrantInstance.initialize).toHaveBeenCalled();
             expect(DirectoryScanner).toHaveBeenCalled();
-            expect(DirectoryScanner.prototype.scanDirectory).toHaveBeenCalled();
+            expect(mockScannerInstance.scanDirectory).toHaveBeenCalled();
             expect(FileWatcher).toHaveBeenCalled();
-            expect(FileWatcher.prototype.initialize).toHaveBeenCalled();
+            expect(mockWatcherInstance.initialize).toHaveBeenCalled();
         });
 
         it('should search the index using embedder and vector store', async () => {
@@ -118,21 +255,36 @@ describe('Code Index Integration', () => {
             (manager as any).qdrantUrl = 'http://localhost:6333';
             (manager as any)._systemStatus = 'Indexed';
 
-            // Mock embedder
-            (OpenAiEmbedder.prototype.createEmbeddings as any).mockResolvedValue({
-                embeddings: [mockVector],
-                usage: { prompt_tokens: 10, total_tokens: 20 }
-            });
+            // Create mock instances
+            const mockEmbedderInstance = {
+                createEmbeddings: jest.fn().mockResolvedValue({
+                    embeddings: [mockVector],
+                    usage: { prompt_tokens: 10, total_tokens: 20 }
+                })
+            };
 
-            // Mock vector store
-            (QdrantVectorStore.prototype.search as any).mockResolvedValue(mockResults);
+            const mockQdrantInstance = {
+                search: jest.fn().mockResolvedValue(mockResults),
+                initialize: jest.fn(),
+                upsertPoints: jest.fn(),
+                deletePointsByFilePath: jest.fn(),
+                clearCollection: jest.fn()
+            };
+
+            // Mock constructors to return our instances
+            (OpenAiEmbedder as jest.Mock).mockImplementation(() => mockEmbedderInstance);
+            (QdrantVectorStore as jest.Mock).mockImplementation(() => mockQdrantInstance);
+
+            // Set up manager's internal instances
+            (manager as any).embedder = mockEmbedderInstance;
+            (manager as any).vectorStore = mockQdrantInstance;
 
             // Act
             const results = await manager.searchIndex(query, limit);
 
             // Assert
-            expect(OpenAiEmbedder.prototype.createEmbeddings).toHaveBeenCalledWith([query]);
-            expect(QdrantVectorStore.prototype.search).toHaveBeenCalledWith(mockVector, limit);
+            expect(mockEmbedderInstance.createEmbeddings).toHaveBeenCalledWith([query]);
+            expect(mockQdrantInstance.search).toHaveBeenCalledWith(mockVector, limit);
             expect(results).toEqual(mockResults);
         });
     });

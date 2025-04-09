@@ -1,15 +1,121 @@
-import { CodeIndexManager } from '../manager.new';
+import { CodeIndexManager } from '../manager';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import * as vscode from 'vscode';
 
-// Import test helpers
-import {
-    createMockExtensionContext,
-    createOpenAiEmbedderMock,
-    createQdrantVectorStoreMock,
-    createDirectoryScannerMock,
-    createFileWatcherMock
-} from './test-helpers';
+// Define mocks locally to avoid circular dependencies
+function createOpenAiEmbedderMock() {
+    return jest.fn().mockImplementation(() => ({
+        createEmbeddings: jest.fn().mockImplementation(() => {
+            return {
+                embeddings: [[0.1, 0.2, 0.3]],
+                usage: { prompt_tokens: 10, total_tokens: 20 }
+            };
+        })
+    }));
+}
+
+function createQdrantVectorStoreMock() {
+    return jest.fn().mockImplementation(() => ({
+        initialize: jest.fn().mockImplementation(() => Promise.resolve(false)),
+        search: jest.fn().mockImplementation(() => {
+            return [
+                {
+                    id: 'point1',
+                    score: 0.9,
+                    payload: {
+                        filePath: '/test/file.js',
+                        codeChunk: 'function test() {}',
+                        startLine: 1,
+                        endLine: 3
+                    }
+                }
+            ];
+        }),
+        upsertPoints: jest.fn(),
+        deletePointsByFilePath: jest.fn(),
+        clearCollection: jest.fn()
+    }));
+}
+
+function createDirectoryScannerMock() {
+    return jest.fn().mockImplementation(() => ({
+        scanDirectory: jest.fn().mockImplementation(() => {
+            return {
+                codeBlocks: [],
+                stats: { processed: 5, skipped: 2 }
+            };
+        })
+    }));
+}
+
+function createFileWatcherMock() {
+    return jest.fn().mockImplementation(() => ({
+        initialize: jest.fn().mockImplementation(() => Promise.resolve()),
+        dispose: jest.fn(),
+        onDidStartProcessing: jest.fn(),
+        onDidFinishProcessing: jest.fn(),
+        processFile: jest.fn()
+    }));
+}
+
+function createMockExtensionContext() {
+    return {
+        globalState: {
+            get: jest.fn(),
+            update: jest.fn().mockImplementation(() => Promise.resolve()),
+            setKeysForSync: jest.fn(),
+            keys: jest.fn().mockReturnValue([''] as readonly string[])
+        },
+        subscriptions: [],
+        workspaceState: {
+            get: jest.fn(),
+            update: jest.fn().mockImplementation(() => Promise.resolve()),
+            setKeysForSync: jest.fn(),
+            keys: jest.fn().mockReturnValue([''] as readonly string[])
+        },
+        extensionPath: '',
+        storagePath: '',
+        globalStoragePath: '',
+        logPath: '',
+        extensionUri: {} as any,
+        globalStorageUri: {} as any,
+        logUri: {} as any,
+        storageUri: {} as any,
+        asAbsolutePath: jest.fn().mockImplementation((path) => path),
+        extensionMode: 1, // Development mode
+        secrets: {
+            get: jest.fn().mockImplementation(() => Promise.resolve('')),
+            store: jest.fn().mockImplementation(() => Promise.resolve()),
+            delete: jest.fn().mockImplementation(() => Promise.resolve()),
+            onDidChange: { event: jest.fn(), dispose: jest.fn() } as any
+        },
+        environmentVariableCollection: {
+            persistent: false,
+            replace: jest.fn(),
+            append: jest.fn(),
+            prepend: jest.fn(),
+            get: jest.fn(),
+            forEach: jest.fn(),
+            delete: jest.fn(),
+            clear: jest.fn()
+        },
+        extension: {
+            id: 'test-extension',
+            extensionUri: {} as any,
+            extensionPath: '',
+            isActive: true,
+            packageJSON: {},
+            exports: undefined,
+            activate: jest.fn().mockImplementation(() => Promise.resolve())
+        },
+        languageModelAccessInformation: {
+            current: {
+                endpoint: '',
+                authHeader: ''
+            }
+        }
+    };
+}
 
 // Mock dependencies
 jest.mock('vscode');
@@ -23,12 +129,12 @@ jest.mock('../vector-stores/qdrant-client', () => {
         QdrantVectorStore: createQdrantVectorStoreMock()
     };
 });
-jest.mock('../processors/scanner', () => {
+jest.mock('../scanner', () => {
     return {
         DirectoryScanner: createDirectoryScannerMock()
     };
 });
-jest.mock('../processors/file-watcher', () => {
+jest.mock('../file-watcher', () => {
     return {
         FileWatcher: createFileWatcherMock()
     };

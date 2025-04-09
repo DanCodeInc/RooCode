@@ -37,7 +37,7 @@ jest.mock("vscode", () => {
 			}
 		},
 		Uri: {
-			joinPath: jest.fn((base, ...paths) => ({ fsPath: path.join(base.fsPath, ...paths) })),
+			joinPath: jest.fn((base, ...paths) => ({ fsPath: `${base.fsPath}/${paths.join('/')}` })),
 			file: jest.fn((p) => ({ fsPath: p })),
 		},
 		EventEmitter: jest.fn().mockImplementation(() => mockEventEmitter),

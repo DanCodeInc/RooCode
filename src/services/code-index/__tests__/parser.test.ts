@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 // Mock the fs/promises module
-const mockReadFile = jest.fn().mockResolvedValue('mock file content');
+const mockReadFile = jest.fn<Promise<string>, [string, string]>().mockResolvedValue('mock file content');
 jest.mock('fs/promises', () => ({
     readFile: mockReadFile
 }));
@@ -15,7 +15,7 @@ jest.mock('../../tree-sitter/queries', () => ({
 
 // Mock the tree-sitter language parser
 const mockLanguageParser = {
-    loadRequiredLanguageParsers: jest.fn().mockImplementation((filePaths) => {
+    loadRequiredLanguageParsers: jest.fn<Record<string, any>, [string[]]>().mockImplementation((filePaths: string[]) => {
         const mockQuery = {
             matches: jest.fn().mockReturnValue([
                 {
@@ -41,7 +41,7 @@ const mockLanguageParser = {
         };
 
         const mockParser = {
-            parse: jest.fn().mockImplementation((content) => ({
+            parse: jest.fn().mockImplementation((content: string) => ({
                 rootNode: {
                     text: content,
                     children: [],
@@ -55,7 +55,7 @@ const mockLanguageParser = {
         };
 
         // Return mock parsers for each supported extension
-        const result = {};
+        const result: Record<string, any> = {};
         for (const path of filePaths) {
             const ext = path.split('.').pop();
             if (ext) {

@@ -63,10 +63,10 @@ jest.mock('@qdrant/js-client-rest', () => ({
     QdrantClient: jest.fn().mockImplementation(() => mockQdrantClient)
 }));
 
-// Create typed mock methods for QdrantVectorStore
-const mockInitialize = jest.fn<Promise<boolean>, []>().mockResolvedValue(true);
-const mockUpsertPoints = jest.fn<Promise<void>, [any[]]>().mockImplementation(async (points) => {});
-const mockSearch = jest.fn<Promise<any[]>, [number[], number?]>().mockImplementation(async (queryVector, limit = 10) => {
+// Create mock methods for QdrantVectorStore
+const mockInitialize = jest.fn().mockResolvedValue(true);
+const mockUpsertPoints = jest.fn().mockImplementation(async (points) => {});
+const mockSearch = jest.fn().mockImplementation(async (queryVector, limit = 10) => {
     return [
         {
             id: 'point1',
@@ -80,8 +80,8 @@ const mockSearch = jest.fn<Promise<any[]>, [number[], number?]>().mockImplementa
         }
     ];
 });
-const mockDeletePointsByFilePath = jest.fn<Promise<void>, [string]>();
-const mockClearCollection = jest.fn<Promise<void>, []>();
+const mockDeletePointsByFilePath = jest.fn();
+const mockClearCollection = jest.fn();
 
 // Mock the QdrantVectorStore class
 jest.mock('../vector-stores/qdrant-client', () => {

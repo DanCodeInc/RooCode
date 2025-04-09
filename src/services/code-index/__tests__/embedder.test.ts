@@ -24,8 +24,8 @@ jest.mock('../../../api/providers/openai-native', () => {
     };
 });
 
-// Create typed mock functions
-const mockCreateEmbeddings = jest.fn<Promise<any>, [string[], string?]>().mockImplementation((texts, model) => {
+// Create mock functions
+const mockCreateEmbeddings = jest.fn().mockImplementation((texts, model) => {
     const mockResponse = {
         embeddings: [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
         usage: { prompt_tokens: 10, total_tokens: 20 }
@@ -33,11 +33,11 @@ const mockCreateEmbeddings = jest.fn<Promise<any>, [string[], string?]>().mockIm
     return Promise.resolve(mockResponse);
 });
 
-const mockCreateEmbeddingsError = jest.fn<Promise<any>, [string[], string?]>().mockImplementation((texts, model) => {
+const mockCreateEmbeddingsError = jest.fn().mockImplementation((texts, model) => {
     throw new Error('Failed to create embeddings');
 });
 
-const mockCreateWithModelCapture = jest.fn<Promise<any>, [string[], string?]>().mockImplementation((texts, model) => {
+const mockCreateWithModelCapture = jest.fn().mockImplementation((texts, model) => {
     return Promise.resolve({
         embeddings: [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
         usage: { prompt_tokens: 10, total_tokens: 20 }

@@ -18,6 +18,7 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import { discoverChromeHostUrl, tryChromeHostUrl } from "../../services/browser/browserDiscovery"
+import { CodeIndexManager, IndexProgressUpdate } from "../../services/code-index/manager"
 import { searchWorkspaceFiles } from "../../services/search/file-search"
 import { fileExistsAtPath } from "../../utils/fs"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
@@ -1312,6 +1313,123 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			const isOptedIn = telemetrySetting === "enabled"
 			telemetryService.updateTelemetryState(isOptedIn)
 			await provider.postStateToWebview()
+			break
+		}
+		case "codeIndexEnabled": {
+			const enabled = message.bool ?? false
+			// Save the state first
+			await updateGlobalState("codeIndexEnabled", enabled)
+			// Get manager instance
+			const manager = CodeIndexManager.getInstance(provider.context)
+			// Get related state AFTER saving the current value
+			const { codeIndexOpenAiKey, codeIndexQdrantUrl } = await provider.getState()
+
+			if (enabled && codeIndexOpenAiKey && codeIndexQdrantUrl) {
+				// If enabling and full config is present, update manager
+				manager.updateConfiguration({
+					openAiOptions: { openAiNativeApiKey: codeIndexOpenAiKey },
+					qdrantUrl: codeIndexQdrantUrl,
+				})
+			} else if (!enabled) {
+				// If disabling, ensure the watcher is stopped
+				manager.stopWatcher()
+			}
+			// Update webview state
+			await provider.postStateToWebview()
+			break
+		}
+		case "codeIndexOpenAiKey": {
+			const newKey = message.text // Key is sent in 'text' field
+			// Save the state first
+			await updateGlobalState("codeIndexOpenAiKey", newKey)
+			// Get manager instance
+			const manager = CodeIndexManager.getInstance(provider.context)
+			// Get related state AFTER saving the current value
+			const { codeIndexEnabled, codeIndexQdrantUrl } = await provider.getState()
+
+			// Update manager only if enabled and both key & URL are now present
+			if (codeIndexEnabled && newKey && codeIndexQdrantUrl) {
+				manager.updateConfiguration({
+					openAiOptions: { openAiNativeApiKey: newKey },
+					qdrantUrl: codeIndexQdrantUrl,
+				})
+			}
+			// Update webview state
+			await provider.postStateToWebview()
+			break
+		}
+		case "codeIndexQdrantUrl": {
+			const newUrl = message.text // URL is sent in 'text' field
+			// Save the state first
+			await updateGlobalState("codeIndexQdrantUrl", newUrl)
+			// Get manager instance
+			const manager = CodeIndexManager.getInstance(provider.context)
+			// Get related state AFTER saving the current value
+			const { codeIndexEnabled, codeIndexOpenAiKey } = await provider.getState()
+
+			// Update manager only if enabled and both key & URL are now present
+			if (codeIndexEnabled && codeIndexOpenAiKey && newUrl) {
+				manager.updateConfiguration({
+					openAiOptions: { openAiNativeApiKey: codeIndexOpenAiKey },
+					qdrantUrl: newUrl,
+				})
+			}
+			// Update webview state
+			await provider.postStateToWebview()
+			break
+		}
+		case "requestIndexingStatus": {
+			const status = provider.codeIndexManager!.getCurrentStatus()
+			provider.postMessageToWebview({
+				type: "indexingStatusUpdate",
+				values: status,
+			})
+			break
+		}
+		case "requestIndexingStatus": {
+			const manager = provider.codeIndexManager! // Access via provider
+			if (manager) {
+				// Send the current status immediately upon request
+				provider.postMessageToWebview({
+					type: "indexingStatusUpdate",
+					values: { state: manager.state, message: "Current status requested" }, // Provide a clearer message
+				})
+			} else {
+				provider.log("CodeIndexManager not available for requestIndexingStatus")
+				// Optionally send a standby/error status back to the webview
+				provider.postMessageToWebview({
+					type: "indexingStatusUpdate",
+					values: { state: "Error", message: "Code Index Manager not available" },
+				})
+			}
+			break
+		}
+		case "startIndexing": {
+			try {
+				const manager = provider.codeIndexManager!
+				await manager.startIndexing()
+				// Optionally send a confirmation or rely on indexingStatusUpdate
+			} catch (error) {
+				provider.log(`Error starting indexing: ${error instanceof Error ? error.message : String(error)}`)
+				// Optionally send an error message back to the webview
+			}
+			break
+		}
+		case "clearIndexData": {
+			try {
+				const manager = provider.codeIndexManager!
+				await manager.clearIndexData()
+				provider.postMessageToWebview({ type: "indexCleared", values: { success: true } })
+			} catch (error) {
+				provider.log(`Error clearing index data: ${error instanceof Error ? error.message : String(error)}`)
+				provider.postMessageToWebview({
+					type: "indexCleared",
+					values: {
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+				})
+			}
 			break
 		}
 	}

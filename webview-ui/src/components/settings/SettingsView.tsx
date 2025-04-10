@@ -22,7 +22,7 @@ import { TelemetrySetting } from "../../../../src/shared/TelemetrySetting"
 import { ApiConfiguration } from "../../../../src/shared/api"
 
 import { vscode } from "@/utils/vscode"
-import { CodeIndexSettings } from "./CodeIndexSettings"
+import { CodeIndexSettings } from "./code-index"
 import { ExtensionStateContextType, useExtensionState } from "@/context/ExtensionStateContext"
 import {
 	AlertDialog,

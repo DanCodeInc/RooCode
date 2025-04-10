@@ -6,6 +6,7 @@ node_modules
 coverage/
 
 .DS_Store
+.idea
 
 # Builds
 bin/

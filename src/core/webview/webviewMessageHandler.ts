@@ -1379,27 +1379,20 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			break
 		}
 		case "requestIndexingStatus": {
-			const status = provider.codeIndexManager!.getCurrentStatus()
-			provider.postMessageToWebview({
-				type: "indexingStatusUpdate",
-				values: status,
-			})
-			break
-		}
-		case "requestIndexingStatus": {
-			const manager = provider.codeIndexManager! // Access via provider
+			const manager = provider.codeIndexManager
 			if (manager) {
-				// Send the current status immediately upon request
+				// Get the current status from the manager
+				const status = manager.getCurrentStatus()
 				provider.postMessageToWebview({
 					type: "indexingStatusUpdate",
-					values: { state: manager.state, message: "Current status requested" }, // Provide a clearer message
+					values: status,
 				})
 			} else {
 				provider.log("CodeIndexManager not available for requestIndexingStatus")
-				// Optionally send a standby/error status back to the webview
+				// Send an error status back to the webview
 				provider.postMessageToWebview({
 					type: "indexingStatusUpdate",
-					values: { state: "Error", message: "Code Index Manager not available" },
+					values: { systemStatus: "Error", message: "Code Index Manager not available" },
 				})
 			}
 			break

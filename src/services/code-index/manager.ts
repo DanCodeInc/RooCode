@@ -15,6 +15,13 @@ export type IndexingState = "Standby" | "Indexing" | "Indexed" | "Error"
 export interface IndexProgressUpdate {
 	systemStatus: IndexingState
 	message?: string // For details like error messages or current activity
+	fileStatuses?: Record<string, string>
+	processedFiles?: number
+	skippedFiles?: number
+	errorFiles?: number
+	processingFiles?: number
+	totalFiles?: number
+	progressPercent?: number
 }
 
 export class CodeIndexManager {
@@ -42,11 +49,7 @@ export class CodeIndexManager {
 
 	private _systemStatus: IndexingState = "Standby"
 	private _fileStatuses: Record<string, string> = {}
-	private _progressEmitter = new vscode.EventEmitter<{
-		systemStatus: IndexingState
-		fileStatuses: Record<string, string>
-		message?: string
-	}>()
+	private _progressEmitter = new vscode.EventEmitter<IndexProgressUpdate>()
 	private _fileWatcher: CodeIndexFileWatcher | null = null
 	private _isProcessing: boolean = false // Flag to track active work (scan or watch event)
 	private _fileWatcherSubscriptions: vscode.Disposable[] = []
@@ -519,20 +522,41 @@ export class CodeIndexManager {
 
 		// If any state actually changed, notify listeners
 		if (stateChanged) {
+			// Get the full status with all statistics
+			const status = this.getCurrentStatus()
+
+			// Post to webview
 			this.postStatusUpdate()
-			this._progressEmitter.fire({
-				systemStatus: this._systemStatus,
-				fileStatuses: this._fileStatuses, // Send the whole map
-				message: this._statusMessage,
-			})
+
+			// Fire event for other listeners
+			this._progressEmitter.fire(status)
 		}
 	}
 
 	public getCurrentStatus() {
+		// Calculate statistics from file statuses
+		const processedFiles = Object.values(this._fileStatuses).filter((status) => status === "Indexed").length
+		const skippedFiles = 0 // We don't track skipped files in the status map
+		const errorFiles = Object.values(this._fileStatuses).filter((status) => status === "Error").length
+		const processingFiles = Object.values(this._fileStatuses).filter((status) => status === "Processing").length
+		const totalFiles = Object.keys(this._fileStatuses).length
+
+		// Calculate progress percentage
+		let progressPercent = 0
+		if (totalFiles > 0) {
+			progressPercent = Math.min(Math.round((processedFiles / totalFiles) * 100), 100)
+		}
+
 		return {
 			systemStatus: this._systemStatus,
 			fileStatuses: this._fileStatuses,
 			message: this._statusMessage,
+			processedFiles,
+			skippedFiles,
+			errorFiles,
+			processingFiles,
+			totalFiles,
+			progressPercent,
 		}
 	}
 
@@ -541,14 +565,12 @@ export class CodeIndexManager {
 	 */
 	private postStatusUpdate() {
 		if (this.webviewProvider) {
+			// Get the full status with all statistics
+			const status = this.getCurrentStatus()
+
 			this.webviewProvider.postMessage({
 				type: "indexingStatusUpdate",
-				values: {
-					systemStatus: this._systemStatus,
-					message: this._statusMessage,
-					// Optionally include fileStatuses if the webview needs it
-					// fileStatuses: this._fileStatuses
-				},
+				values: status,
 			})
 		}
 	}

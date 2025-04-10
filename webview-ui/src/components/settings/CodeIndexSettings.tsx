@@ -29,6 +29,10 @@ interface IndexingStatusUpdateMessage {
 	values: {
 		systemStatus: string
 		message?: string
+		processedFiles?: number
+		skippedFiles?: number
+		totalFiles?: number
+		progressPercent?: number
 	}
 }
 
@@ -40,24 +44,65 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 }) => {
 	const [systemStatus, setSystemStatus] = useState("Standby")
 	const [indexingMessage, setIndexingMessage] = useState("")
+	const [processedFiles, setProcessedFiles] = useState(0)
+	const [skippedFiles, setSkippedFiles] = useState(0)
+	// We only need the setter function for totalFiles
+	const [, setTotalFiles] = useState(0)
+	const [progressPercent, setProgressPercent] = useState(0)
 
 	useEffect(() => {
 		if (!codeIndexEnabled) {
+			// Reset all state values when indexing is disabled
 			setSystemStatus("Standby")
 			setIndexingMessage("")
+			setProcessedFiles(0)
+			setSkippedFiles(0)
+			setTotalFiles(0)
+			setProgressPercent(0)
 			return
 		}
 
 		// Request initial indexing status from extension host
 		vscode.postMessage({ type: "requestIndexingStatus" })
 
-		// Set up interval for periodic status updates
+		// Set up interval for periodic status updates (every 5 seconds)
+		const pollInterval = setInterval(() => {
+			vscode.postMessage({ type: "requestIndexingStatus" })
+		}, 5000)
 
 		// Set up message listener for status updates
 		const handleMessage = (event: MessageEvent<IndexingStatusUpdateMessage>) => {
 			if (event.data.type === "indexingStatusUpdate") {
-				setSystemStatus(event.data.values.systemStatus)
-				setIndexingMessage(event.data.values.message || "")
+				const values = event.data.values
+
+				// Update basic status
+				setSystemStatus(values.systemStatus)
+				setIndexingMessage(values.message || "")
+
+				// Update file statistics if available
+				if (values.processedFiles !== undefined) {
+					setProcessedFiles(values.processedFiles)
+				}
+
+				if (values.skippedFiles !== undefined) {
+					setSkippedFiles(values.skippedFiles)
+				}
+
+				if (values.totalFiles !== undefined) {
+					setTotalFiles(values.totalFiles)
+				}
+
+				if (values.progressPercent !== undefined) {
+					setProgressPercent(values.progressPercent)
+				} else if (
+					values.processedFiles !== undefined &&
+					values.totalFiles !== undefined &&
+					values.totalFiles > 0
+				) {
+					// Calculate progress percentage if not provided but we have processed and total counts
+					const percent = Math.min(Math.round((values.processedFiles / values.totalFiles) * 100), 100)
+					setProgressPercent(percent)
+				}
 			}
 		}
 
@@ -65,6 +110,7 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 
 		// Cleanup function
 		return () => {
+			clearInterval(pollInterval) // Clean up the polling interval
 			window.removeEventListener("message", handleMessage)
 		}
 	}, [codeIndexEnabled])
@@ -108,24 +154,58 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 							</p>
 						</div>
 
-						<div className="text-sm text-vscode-descriptionForeground mt-4">
-							<span
-								className={`
-									inline-block w-3 h-3 rounded-full mr-2
-									${
-										systemStatus === "Standby"
-											? "bg-gray-400"
-											: systemStatus === "Indexing"
-												? "bg-yellow-500 animate-pulse"
-												: systemStatus === "Indexed"
-													? "bg-green-500"
-													: systemStatus === "Error"
-														? "bg-red-500"
-														: "bg-gray-400"
-									}
-								`}></span>
-							{systemStatus}
-							{indexingMessage ? ` - ${indexingMessage}` : ""}
+						<div className="space-y-2 mt-4">
+							{/* Status indicator */}
+							<div className="text-sm text-vscode-descriptionForeground flex items-center">
+								<span
+									className={`
+										inline-block w-3 h-3 rounded-full mr-2
+										${
+											systemStatus === "Standby"
+												? "bg-gray-400"
+												: systemStatus === "Indexing"
+													? "bg-yellow-500 animate-pulse"
+													: systemStatus === "Indexed"
+														? "bg-green-500"
+														: systemStatus === "Error"
+															? "bg-red-500"
+															: "bg-gray-400"
+										}
+									`}></span>
+								<span className="font-medium">{systemStatus}</span>
+								{indexingMessage ? <span className="ml-2">{indexingMessage}</span> : ""}
+							</div>
+
+							{/* Progress bar - only show when indexing */}
+							{systemStatus === "Indexing" && (
+								<div className="space-y-1">
+									<div className="w-full bg-vscode-input-background rounded-sm overflow-hidden h-1.5">
+										<div
+											className="bg-yellow-500 h-full transition-all duration-300 ease-in-out"
+											style={{ width: `${progressPercent}%` }}></div>
+									</div>
+									<div className="flex justify-between text-xs text-vscode-descriptionForeground">
+										<span>{progressPercent}% complete</span>
+										<span>
+											{processedFiles} processed, {skippedFiles} skipped
+										</span>
+									</div>
+								</div>
+							)}
+
+							{/* Error details - only show when there's an error */}
+							{systemStatus === "Error" && indexingMessage && (
+								<div className="text-xs text-red-500 bg-red-500 bg-opacity-10 p-2 rounded border border-red-500 border-opacity-20">
+									{indexingMessage}
+								</div>
+							)}
+
+							{/* Success details - only show when indexed */}
+							{systemStatus === "Indexed" && (
+								<div className="text-xs text-vscode-descriptionForeground">
+									Total files indexed: {processedFiles + skippedFiles}
+								</div>
+							)}
 						</div>
 
 						<div className="flex gap-2 mt-4">

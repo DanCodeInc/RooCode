@@ -80,17 +80,15 @@ export async function codebaseSearchTool(
 
 		const manager = CodeIndexManager.getInstance(context)
 
-		// Check if indexing is enabled and configured (using assumed properties/methods)
-		// @ts-expect-error Accessing private member _isEnabled
-		const isEnabled = manager.isEnabled ?? true // Assume enabled if property doesn't exist
-		// @ts-expect-error Accessing private member _isConfigured
-		const isConfigured = manager.isConfigured ? manager.isConfigured() : true // Assume configured if method doesn't exist
-
-		if (!isEnabled) {
-			throw new Error("Code Indexing is disabled in the settings.")
+		// Check if indexing is enabled and configured using public properties
+		if (!manager.isFeatureEnabled) {
+			return handleError("searching codebase", new Error("Code Indexing is disabled in the settings."))
 		}
-		if (!isConfigured) {
-			throw new Error("Code Indexing is not configured (Missing OpenAI Key or Qdrant URL).")
+		if (!manager.isFeatureConfigured) {
+			return handleError(
+				"searching codebase",
+				new Error("Code Indexing is not configured (Missing OpenAI Key or Qdrant URL)."),
+			)
 		}
 
 		const searchResults: QdrantSearchResult[] = await manager.searchIndex(query, limit)

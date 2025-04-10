@@ -38,7 +38,7 @@ import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { McpServerManager } from "../../services/mcp/McpServerManager"
 import { ShadowCheckpointService } from "../../services/checkpoints/ShadowCheckpointService"
-import type { IndexProgressUpdate } from "../../services/code-index/manager"
+import type { IndexProgressUpdate } from "../../services/code-index/interfaces"
 import { fileExistsAtPath } from "../../utils/fs"
 import { setSoundEnabled } from "../../utils/sound"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
@@ -89,7 +89,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
 		private readonly renderContext: "sidebar" | "editor" = "sidebar",
-		public readonly codeIndexManager?: import("../../services/code-index/manager").CodeIndexManager,
+		public readonly codeIndexManager?: import("../../services/code-index").ICodeIndexManager,
 	) {
 		super()
 
@@ -187,7 +187,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	// remove the current task/cline instance (at the top of the stack), ao this task is finished
 	// and resume the previous task/cline instance (if it exists)
 	// this is used when a sub task is finished and the parent task needs to be resumed
-	async finishSubTask(lastMessage?: string) {
+	async finishSubTask(lastMessage: string) {
 		console.log(`[subtasks] finishing subtask ${lastMessage}`)
 		// remove the last cline instance from the stack (this is the finished sub task)
 		await this.removeClineFromStack()
@@ -594,7 +594,26 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	}
 
 	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
-		const localPort = "5173"
+		// Try to read the port from the file
+		let localPort = "5173" // Default fallback
+		try {
+			const fs = require("fs")
+			const path = require("path")
+			const portFilePath = path.resolve(__dirname, "../.vite-port")
+
+			if (fs.existsSync(portFilePath)) {
+				localPort = fs.readFileSync(portFilePath, "utf8").trim()
+				console.log(`[ClineProvider:Vite] Using Vite server port from ${portFilePath}: ${localPort}`)
+			} else {
+				console.log(
+					`[ClineProvider:Vite] Port file not found at ${portFilePath}, using default port: ${localPort}`,
+				)
+			}
+		} catch (err) {
+			console.error("[ClineProvider:Vite] Failed to read Vite port file:", err)
+			// Continue with default port if file reading fails
+		}
+
 		const localServerUrl = `localhost:${localPort}`
 
 		// Check if local dev server is running.
@@ -1198,7 +1217,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			enableMcpServerCreation,
 			alwaysApproveResubmit,
 			requestDelaySeconds,
-			rateLimitSeconds,
 			currentApiConfigName,
 			listApiConfigMeta,
 			pinnedApiConfigs,
@@ -1269,7 +1287,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			enableMcpServerCreation: enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
 			requestDelaySeconds: requestDelaySeconds ?? 10,
-			rateLimitSeconds: rateLimitSeconds ?? 0,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			pinnedApiConfigs: pinnedApiConfigs ?? {},
@@ -1360,7 +1377,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			enableMcpServerCreation: stateValues.enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: stateValues.alwaysApproveResubmit ?? false,
 			requestDelaySeconds: Math.max(5, stateValues.requestDelaySeconds ?? 10),
-			rateLimitSeconds: stateValues.rateLimitSeconds ?? 0,
 			currentApiConfigName: stateValues.currentApiConfigName ?? "default",
 			listApiConfigMeta: stateValues.listApiConfigMeta ?? [],
 			pinnedApiConfigs: stateValues.pinnedApiConfigs ?? {},

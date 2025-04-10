@@ -26,6 +26,9 @@ jest.mock("vscode", () => {
 			})),
 			fs: {
 				stat: jest.fn().mockResolvedValue({ size: 0 }),
+				readFile: jest.fn().mockResolvedValue(Buffer.from("file content")),
+				writeFile: jest.fn().mockResolvedValue(undefined),
+				createDirectory: jest.fn().mockResolvedValue(undefined)
 			},
 		},
 		Uri: {
@@ -82,10 +85,10 @@ describe("CodeIndexFileWatcher", () => {
 		jest.clearAllMocks()
 		jest.useFakeTimers() // For debounce
 
-		// Mock implementations using jest.spyOn
+		// Mock implementations
 		mockGetWorkspacePath.mockReturnValue(workspaceRoot)
-		// Mock fs.readFile conditionally
-		jest.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async (uri: vscode.Uri): Promise<Buffer> => {
+		// Configure the mock for readFile
+		const mockReadFile = jest.fn().mockImplementation(async (uri: vscode.Uri): Promise<Buffer> => {
 			if (uri.fsPath.includes("roo-index-cache-")) {
 				// Return empty JSON for cache reads to prevent parsing errors
 				return Buffer.from(JSON.stringify({}))
@@ -93,6 +96,8 @@ describe("CodeIndexFileWatcher", () => {
 			// Default content for other file reads (e.g., during change events)
 			return Buffer.from("file content")
 		})
+		// Replace the mock implementation
+		;(vscode.workspace.fs.readFile as jest.Mock) = mockReadFile
 		mockParseCodeFileByQueries.mockResolvedValue([]) // Default to no blocks
 
 		// Mock RooIgnoreController instance
@@ -105,18 +110,18 @@ describe("CodeIndexFileWatcher", () => {
 			return mockIgnoreControllerInstance
 		})
 
-		// Mock QdrantClient instance methods
-		MockCodeIndexQdrantClient.mockImplementation(() => {
-			mockQdrantClientInstance = {
-				initialize: jest.fn().mockResolvedValue(undefined),
-				upsertPoints: jest.fn().mockResolvedValue(undefined),
-				deletePointsByFilePath: jest.fn().mockResolvedValue(undefined),
-			} as unknown as jest.Mocked<CodeIndexQdrantClient>
-			return mockQdrantClientInstance
-		})
+		// Create mock QdrantClient instance
+		mockQdrantClientInstance = {
+			initialize: jest.fn().mockResolvedValue(undefined),
+			upsertPoints: jest.fn().mockResolvedValue(undefined),
+			deletePointsByFilePath: jest.fn().mockResolvedValue(undefined),
+		} as unknown as jest.Mocked<CodeIndexQdrantClient>
+
+		// Mock QdrantClient constructor
+					MockCodeIndexQdrantClient.mockImplementation(() => mockQdrantClientInstance)
 
 		// Mock Embedder (optional, only needed if testing embedding path)
-		MockCodeIndexOpenAiEmbedder.mockImplementation(
+					MockCodeIndexOpenAiEmbedder.mockImplementation(
 			() =>
 				({
 					createEmbeddings: jest.fn().mockResolvedValue({ embeddings: [[0.1, 0.2]] }),

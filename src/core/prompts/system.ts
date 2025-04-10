@@ -27,6 +27,7 @@ import {
 import { loadSystemPromptFile } from "./sections/custom-system-prompt"
 import { formatLanguage } from "../../shared/language"
 import { CodeIndexManager } from "../../services/code-index/manager"
+import { ICodeIndexManager } from "../../services/code-index/interfaces"
 
 async function generatePrompt(
 	context: vscode.ExtensionContext,
@@ -63,7 +64,25 @@ async function generatePrompt(
 			: Promise.resolve(""),
 	])
 
-	const codeIndexManager = CodeIndexManager.getInstance(context)
+	// Create a dummy code index manager if no workspace is available
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	let codeIndexManager: ICodeIndexManager
+	if (workspacePath) {
+		codeIndexManager = CodeIndexManager.getInstance(workspacePath, context)
+	} else {
+		// Create a dummy implementation that satisfies the interface
+		codeIndexManager = {
+			onProgressUpdate: new vscode.EventEmitter<any>().event,
+			state: 'Standby',
+			loadConfiguration: async () => {},
+			updateConfiguration: () => {},
+			startIndexing: async () => {},
+			stopWatcher: () => {},
+			clearIndex: async () => {},
+			searchIndex: async () => [],
+			setWebviewProvider: () => {}
+		}
+	}
 
 	const basePrompt = `${roleDefinition}
 

@@ -421,7 +421,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			setTextAreaDisabled(true)
 			setClineAsk(undefined)
 			setEnableButtons(false)
-			disableAutoScrollRef.current = false
 		},
 		[clineAsk, startNewTask],
 	)
@@ -468,7 +467,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			setTextAreaDisabled(true)
 			setClineAsk(undefined)
 			setEnableButtons(false)
-			disableAutoScrollRef.current = false
 		},
 		[clineAsk, startNewTask, isStreaming],
 	)
@@ -498,6 +496,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							if (!isHidden && !textAreaDisabled && !enableButtons) {
 								textAreaRef.current?.focus()
 							}
+							break
+						case "focusInput":
+							textAreaRef.current?.focus()
 							break
 					}
 					break

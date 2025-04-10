@@ -1,6 +1,7 @@
 import { scanDirectoryForCodeBlocks } from "../scanner"
 import { CodeBlock } from "../parser"
 import { RooIgnoreController } from "../../../core/ignore/RooIgnoreController"
+import * as vscode from "vscode"
 
 // Mock dependencies
 jest.mock("../../glob/list-files", () => ({
@@ -10,7 +11,7 @@ jest.mock("fs/promises", () => ({
 	stat: jest.fn(),
 }))
 jest.mock("../parser", () => ({
-	parseCodeFileBySize: jest.fn(),
+	parseCodeFileByQueries: jest.fn(),
 	CodeBlock: jest.requireActual("../parser").CodeBlock,
 }))
 jest.mock("vscode", () => {
@@ -28,21 +29,42 @@ jest.mock("vscode", () => {
 				onDidDelete: jest.fn(() => mockDisposable),
 				dispose: jest.fn(),
 			})),
+			fs: {
+				readFile: jest.fn().mockResolvedValue(Buffer.from("file content")),
+				writeFile: jest.fn().mockResolvedValue(undefined),
+				createDirectory: jest.fn().mockResolvedValue(undefined),
+				stat: jest.fn().mockResolvedValue({ size: 1024 })
+			}
+		},
+		Uri: {
+			joinPath: jest.fn((base, ...paths) => ({ fsPath: `${base.fsPath}/${paths.join('/')}` })),
+			file: jest.fn((p) => ({ fsPath: p })),
+		},
+		EventEmitter: jest.fn().mockImplementation(() => mockEventEmitter),
+		Disposable: {
+			from: jest.fn(),
+		},
+		FileSystemError: class FileSystemError extends Error {
+			code: string
+			constructor(message: string, code: string) {
+				super(message)
+				this.name = "FileSystemError"
+				this.code = code
+			}
+			static FileNotFound(uri: string) {
+				return new FileSystemError(`File not found: ${uri}`, "FileNotFound")
+			}
 		},
 		RelativePattern: jest.fn().mockImplementation((base, pattern) => ({
 			base,
 			pattern,
 		})),
-		EventEmitter: jest.fn().mockImplementation(() => mockEventEmitter),
-		Disposable: {
-			from: jest.fn(),
-		},
 	}
 })
 
 const mockListFiles = require("../../glob/list-files").listFiles
 const mockStat = require("fs/promises").stat
-const mockParseCodeFileBySize = require("../parser").parseCodeFileBySize
+const mockParseCodeFileByQueries = require("../parser").parseCodeFileByQueries
 
 describe("scanDirectoryForCodeBlocks", () => {
 	const mockCodeBlock: CodeBlock = {
@@ -75,13 +97,13 @@ describe("scanDirectoryForCodeBlocks", () => {
 			// Default: simulate a regular file
 			return { size: 1024, isDirectory: () => false }
 		})
-		mockParseCodeFileBySize.mockResolvedValue([mockCodeBlock])
+		mockParseCodeFileByQueries.mockResolvedValue([mockCodeBlock])
 	})
 
 	it("should filter out directories", async () => {
 		const result = await scanDirectoryForCodeBlocks()
-		expect(result).toHaveLength(1)
-		expect(mockParseCodeFileBySize).not.toHaveBeenCalledWith("dir/")
+		expect(result.codeBlocks).toHaveLength(1)
+		expect(mockParseCodeFileByQueries).not.toHaveBeenCalledWith("dir/")
 	})
 
 	it("should filter by .rooignore when controller is provided", async () => {
@@ -92,7 +114,7 @@ describe("scanDirectoryForCodeBlocks", () => {
 
 		await scanDirectoryForCodeBlocks(process.cwd(), mockController)
 		expect(mockController.filterPaths).toHaveBeenCalled()
-		expect(mockParseCodeFileBySize).not.toHaveBeenCalledWith("ignored.js")
+		expect(mockParseCodeFileByQueries).not.toHaveBeenCalledWith("ignored.js")
 	})
 
 	it("should initialize new RooIgnoreController when none is provided", async () => {
@@ -105,26 +127,26 @@ describe("scanDirectoryForCodeBlocks", () => {
 
 	it("should filter by supported extensions", async () => {
 		await scanDirectoryForCodeBlocks()
-		expect(mockParseCodeFileBySize).not.toHaveBeenCalledWith("test.txt")
+		expect(mockParseCodeFileByQueries).not.toHaveBeenCalledWith("test.txt")
 	})
 
 	it("should filter by file size (<= 1MB)", async () => {
 		await scanDirectoryForCodeBlocks()
-		expect(mockParseCodeFileBySize).not.toHaveBeenCalledWith("large.js")
+		expect(mockParseCodeFileByQueries).not.toHaveBeenCalledWith("large.js")
 	})
 
 	it("should parse valid files and return CodeBlocks", async () => {
 		const result = await scanDirectoryForCodeBlocks()
-		expect(result).toEqual([mockCodeBlock])
-		expect(mockParseCodeFileBySize).toHaveBeenCalledWith("test.js")
+		expect(result.codeBlocks).toEqual([mockCodeBlock])
+		expect(mockParseCodeFileByQueries).toHaveBeenCalledWith("test.js", { content: "file content", fileHash: expect.any(String) })
 	})
 
 	it("should handle parse errors gracefully", async () => {
-		mockParseCodeFileBySize.mockRejectedValueOnce(new Error("Parse error"))
+		mockParseCodeFileByQueries.mockRejectedValueOnce(new Error("Parse error"))
 		const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {})
 
 		const result = await scanDirectoryForCodeBlocks()
-		expect(result).toEqual([])
+		expect(result.codeBlocks).toEqual([])
 		expect(consoleSpy).toHaveBeenCalled()
 		consoleSpy.mockRestore()
 	})
@@ -132,6 +154,6 @@ describe("scanDirectoryForCodeBlocks", () => {
 	it("should return empty array when no files match criteria", async () => {
 		mockListFiles.mockResolvedValue([[], false])
 		const result = await scanDirectoryForCodeBlocks()
-		expect(result).toEqual([])
+		expect(result.codeBlocks).toEqual([])
 	})
 })

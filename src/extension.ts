@@ -18,7 +18,7 @@ import { initializeI18n } from "./i18n"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
-import { CodeIndexManager } from "./services/code-index/manager"
+import { CodeIndexManager } from "./services/code-index"
 import { McpServerManager } from "./services/mcp/McpServerManager"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { TerminalRegistry } from "./integrations/terminal/TerminalRegistry"
@@ -46,34 +46,35 @@ export async function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel("Roo-Code")
 	context.subscriptions.push(outputChannel)
 
-	const codeIndexManager = CodeIndexManager.getInstance(context)
-	context.subscriptions.push(codeIndexManager)
-	// Start configuration loading (which might trigger indexing) in the background.
-	// Don't await, allowing activation to continue immediately.
-	codeIndexManager
-		.loadConfiguration()
-		.then(() => {
-			// Optional: Log success after config/indexing finishes.
-			outputChannel.appendLine("CodeIndexManager configuration loaded successfully (async).")
-		})
-		.catch((error) => {
-			// Log errors from the configuration/indexing process.
-			// Use console.error for better visibility in developer tools if needed.
-			console.error(
-				"[Extension Activation] Error during background CodeIndexManager configuration/indexing:",
-				error,
-			)
-			outputChannel.appendLine(
-				`[Error] Background CodeIndexManager configuration/indexing failed: ${error.message || error}`,
-			)
-			// Optionally notify the user via a non-modal message
-			// vscode.window.showWarningMessage(`Roo-Code index initialization failed: ${error.message}`);
-		})
-
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	if (workspacePath) {
+		const codeIndexManager = CodeIndexManager.getInstance(workspacePath, context)
+		context.subscriptions.push(codeIndexManager as unknown as vscode.Disposable)
+		// Start configuration loading (which might trigger indexing) in the background.
+		// Don't await, allowing activation to continue immediately.
+		codeIndexManager
+			.loadConfiguration()
+			.then(() => {
+				// Optional: Log success after config/indexing finishes.
+				outputChannel.appendLine("CodeIndexManager configuration loaded successfully (async).")
+			})
+			.catch((error) => {
+				// Log errors from the configuration/indexing process.
+				// Use console.error for better visibility in developer tools if needed.
+				console.error(
+					"[Extension Activation] Error during background CodeIndexManager configuration/indexing:",
+					error,
+				)
+				outputChannel.appendLine(
+					`[Error] Background CodeIndexManager configuration/indexing failed: ${error.message || error}`,
+				)
+				// Optionally notify the user via a non-modal message
+				// vscode.window.showWarningMessage(`Roo-Code index initialization failed: ${error.message}`);
+			})
+	}
 	// Activation continues here immediately...
 	// Add a log to confirm activation proceeds without waiting
 	outputChannel.appendLine("Roo-Code extension activation proceeding without waiting for index load.")
-	outputChannel.appendLine("Roo-Code extension activated")
 
 	// Migrate old settings to new
 	await migrateSettings(context, outputChannel)
@@ -93,6 +94,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize global state if not already set.
 	if (!context.globalState.get("allowedCommands")) {
 		context.globalState.update("allowedCommands", defaultCommands)
+	}
+
+	// Get the code index manager instance
+	// const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	let codeIndexManager
+	if (workspacePath) {
+		codeIndexManager = CodeIndexManager.getInstance(workspacePath, context)
 	}
 
 	const provider = new ClineProvider(context, outputChannel, "sidebar", codeIndexManager)
@@ -162,4 +170,14 @@ export async function deactivate() {
 
 	// Clean up terminal handlers
 	TerminalRegistry.cleanup()
+
+	// Dispose of Code Index Manager
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	if (workspacePath) {
+		const codeIndexManager = CodeIndexManager.getInstance(workspacePath, extensionContext)
+		// Check if the manager has a dispose method
+		if ("dispose" in codeIndexManager) {
+			await (codeIndexManager as any).dispose()
+		}
+	}
 }

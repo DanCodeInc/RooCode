@@ -12,9 +12,10 @@ export class CodeIndexQdrantClient {
 	private client: QdrantClient
 	private readonly collectionName: string
 
-	constructor(workspacePath: string, url?: string) {
+	constructor(workspacePath: string, url?: string, apiKey?: string) {
 		this.client = new QdrantClient({
 			url: url || this.QDRANT_URL,
+			apiKey: apiKey,
 		})
 
 		// Generate collection name from workspace path

@@ -75,7 +75,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Activation continues here immediately...
 	// Add a log to confirm activation proceeds without waiting
 	outputChannel.appendLine("Roo-Code extension activation proceeding without waiting for index load.")
-	outputChannel.appendLine("Roo-Code extension activated")
 
 	// Migrate old settings to new
 	await migrateSettings(context, outputChannel)

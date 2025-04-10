@@ -178,6 +178,7 @@ type ProviderSettings = {
 	modelMaxThinkingTokens?: number | undefined
 	includeMaxTokens?: boolean | undefined
 	fakeAi?: unknown | undefined
+	codeIndexQdrantApiKey?: string | undefined
 }
 
 type GlobalSettings = {

@@ -179,6 +179,7 @@ type ProviderSettings = {
 	modelMaxThinkingTokens?: number | undefined
 	includeMaxTokens?: boolean | undefined
 	fakeAi?: unknown | undefined
+	codeIndexQdrantApiKey?: string | undefined
 }
 
 export type { ProviderSettings }

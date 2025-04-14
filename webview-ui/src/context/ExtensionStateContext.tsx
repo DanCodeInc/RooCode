@@ -86,6 +86,10 @@ export interface ExtensionStateContextType extends ExtensionState {
 	pinnedApiConfigs?: Record<string, boolean>
 	setPinnedApiConfigs: (value: Record<string, boolean>) => void
 	togglePinnedApiConfig: (configName: string) => void
+	codeIndexEmbedderType?: string
+	codeIndexOllamaBaseUrl?: string
+	codeIndexOllamaModelId?: string
+	setCachedStateField<K extends keyof ExtensionStateContextType>(field: K, value: ExtensionStateContextType[K]): void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -163,6 +167,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		pinnedApiConfigs: {}, // Empty object for pinned API configs
 		codeIndexEnabled: false,
 		codeIndexQdrantUrl: "",
+		codeIndexEmbedderType: "openai",
+		codeIndexOllamaBaseUrl: "http://localhost:11434",
+		codeIndexOllamaModelId: "nomic-embed-text:latest",
 	})
 
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -332,6 +339,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 
 				return { ...prevState, pinnedApiConfigs: newPinned }
 			}),
+		setCachedStateField: (field, value) => setState((prevState) => ({ ...prevState, [field]: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

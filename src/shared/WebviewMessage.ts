@@ -128,6 +128,9 @@ export interface WebviewMessage {
 		| "indexCleared"
 		| "codeIndexEnabled"
 		| "codeIndexQdrantUrl"
+		| "codeIndexEmbedderType"
+		| "codeIndexOllamaBaseUrl"
+		| "codeIndexOllamaModelId"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

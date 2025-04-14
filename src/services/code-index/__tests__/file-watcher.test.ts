@@ -3,7 +3,7 @@ import * as path from "path"
 import { CodeIndexFileWatcher } from "../file-watcher"
 import { RooIgnoreController } from "../../../core/ignore/RooIgnoreController"
 import { parseCodeFileByQueries, CodeBlock } from "../parser"
-import { CodeIndexOpenAiEmbedder } from "../openai-embedder"
+import { CodeIndexEmbedderInterface } from "../embedder-interface"
 import { CodeIndexQdrantClient } from "../qdrant-client"
 import { getWorkspacePath } from "../../../utils/path"
 
@@ -55,14 +55,19 @@ jest.mock("../../../core/ignore/RooIgnoreController", () => ({
 	RooIgnoreController: jest.fn(),
 }))
 jest.mock("../parser")
-jest.mock("../openai-embedder")
 jest.mock("../qdrant-client")
+jest.mock("../openai-embedder")
 jest.mock("../../../utils/path")
 // RooIgnoreController is now directly the mock constructor from the factory
 const mockParseCodeFileByQueries = parseCodeFileByQueries as jest.MockedFunction<typeof parseCodeFileByQueries>
-const MockCodeIndexOpenAiEmbedder = CodeIndexOpenAiEmbedder as jest.MockedClass<typeof CodeIndexOpenAiEmbedder>
 const MockCodeIndexQdrantClient = CodeIndexQdrantClient as jest.MockedClass<typeof CodeIndexQdrantClient>
 const mockGetWorkspacePath = getWorkspacePath as jest.MockedFunction<typeof getWorkspacePath>
+
+// Create a mock embedder that implements the interface
+class MockEmbedder implements CodeIndexEmbedderInterface {
+	createEmbeddings = jest.fn().mockResolvedValue({ embeddings: [[0.1, 0.2]], totalTokens: 10 })
+	estimateTokens = jest.fn().mockReturnValue(10)
+}
 
 // --- Test Suite ---
 describe("CodeIndexFileWatcher", () => {
@@ -115,16 +120,8 @@ describe("CodeIndexFileWatcher", () => {
 			return mockQdrantClientInstance
 		})
 
-		// Mock Embedder (optional, only needed if testing embedding path)
-		MockCodeIndexOpenAiEmbedder.mockImplementation(
-			() =>
-				({
-					createEmbeddings: jest.fn().mockResolvedValue({ embeddings: [[0.1, 0.2]] }),
-				}) as any,
-		)
-
 		// Create mock embedder instance explicitly
-		const mockEmbedderInstance = new MockCodeIndexOpenAiEmbedder({} as any)
+		const mockEmbedderInstance = new MockEmbedder()
 
 		// Instantiate the watcher with updated constructor signature
 		watcherInstance = new CodeIndexFileWatcher(

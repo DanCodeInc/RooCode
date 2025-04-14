@@ -1,21 +1,15 @@
 import { OpenAI } from "openai"
-import { OpenAiNativeHandler } from "../../api/providers/openai-native"
 import { ApiHandlerOptions } from "../../shared/api"
+import { CodeIndexEmbedderInterface, EmbeddingResponse } from "./embedder-interface"
 
-interface EmbeddingResponse {
-	embeddings: number[][]
-	usage: {
-		prompt_tokens: number
-		total_tokens: number
-	}
-}
-
-export class CodeIndexOpenAiEmbedder extends OpenAiNativeHandler {
+/**
+ * OpenAI embedder implementation for code indexing
+ */
+export class CodeIndexOpenAiEmbedder implements CodeIndexEmbedderInterface {
 	private embeddingsClient: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
-		super(options)
-		const apiKey = this.options.openAiNativeApiKey ?? "not-provided"
+		const apiKey = options.openAiNativeApiKey ?? "not-provided"
 		this.embeddingsClient = new OpenAI({ apiKey })
 	}
 
@@ -26,16 +20,27 @@ export class CodeIndexOpenAiEmbedder extends OpenAiNativeHandler {
 				model,
 			})
 
+			// Extract embeddings from response
+			const embeddings = response.data.map((item) => item.embedding)
+
 			return {
-				embeddings: response.data.map((item) => item.embedding),
-				usage: {
-					prompt_tokens: response.usage?.prompt_tokens || 0,
-					total_tokens: response.usage?.total_tokens || 0,
-				},
+				embeddings,
+				totalTokens: response.usage?.total_tokens || 0,
 			}
 		} catch (error) {
-			console.error("Failed to create embeddings:", error)
-			throw new Error("Failed to create embeddings")
+			console.error("Error creating embeddings:", error)
+			throw error
 		}
+	}
+
+	/**
+	 * Estimates the number of tokens in the given text.
+	 * This is a simple estimation for OpenAI models.
+	 * @param text Text to estimate token count for
+	 * @returns Estimated number of tokens
+	 */
+	estimateTokens(text: string): number {
+		// Simple estimation: ~4 characters per token for English text
+		return Math.ceil(text.length / 4)
 	}
 }

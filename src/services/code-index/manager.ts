@@ -6,9 +6,11 @@ import { CodeIndexFileWatcher, FileProcessingResult } from "./file-watcher"
 import { ApiHandlerOptions } from "../../shared/api"
 import { getWorkspacePath } from "../../utils/path"
 import { CodeIndexOpenAiEmbedder } from "./openai-embedder"
+import { CodeIndexOllamaEmbedder } from "./ollama-embedder"
 import { CodeIndexQdrantClient } from "./qdrant-client"
 import { QdrantSearchResult } from "./types"
 import { ContextProxy } from "../../core/config/ContextProxy"
+import { CodeIndexEmbedderInterface } from "./embedder-interface"
 
 export type IndexingState = "Standby" | "Indexing" | "Indexed" | "Error"
 
@@ -56,11 +58,13 @@ export class CodeIndexManager {
 	private readonly context: vscode.ExtensionContext
 	private readonly contextProxy: ContextProxy | undefined
 	private openAiOptions?: ApiHandlerOptions // Configurable
+	private ollamaOptions?: ApiHandlerOptions // Configurable for Ollama
 	private qdrantUrl?: string // Configurable
 	private qdrantApiKey?: string // Configurable
 	private isEnabled: boolean = false // New: enabled flag
+	private embedderType: string = "openai" // Default to OpenAI embedder
 
-	private _embedder?: CodeIndexOpenAiEmbedder
+	private _embedder?: CodeIndexEmbedderInterface
 	private _qdrantClient?: CodeIndexQdrantClient
 
 	// Webview provider reference for status updates
@@ -115,8 +119,13 @@ export class CodeIndexManager {
 	_instanceClients() {
 		console.log("[CodeIndexManager] Recreating clients...")
 
-		if (this.isConfigured() && this.isEnabled && this.openAiOptions) {
-			this._embedder = new CodeIndexOpenAiEmbedder(this.openAiOptions)
+		if (this.isConfigured() && this.isEnabled) {
+			// Create the appropriate embedder based on embedderType configuration
+			if (this.embedderType === "ollama" && this.ollamaOptions) {
+				this._embedder = new CodeIndexOllamaEmbedder(this.ollamaOptions)
+			} else if (this.openAiOptions) {
+				this._embedder = new CodeIndexOpenAiEmbedder(this.openAiOptions)
+			}
 			this._qdrantClient = new CodeIndexQdrantClient(this.workspacePath, this.qdrantUrl, this.qdrantApiKey)
 			this.startIndexing()
 		}
@@ -134,10 +143,16 @@ export class CodeIndexManager {
 		const prevOpenAiKey = this.openAiOptions?.openAiNativeApiKey
 		const prevQdrantUrl = this.qdrantUrl
 		const prevQdrantApiKey = this.qdrantApiKey
+		const prevEmbedderType = this.embedderType
 
 		// Fetch settings directly using getGlobalState
 		const codeIndexEnabled = this.contextProxy?.getGlobalState("codeIndexEnabled") ?? false
 		const codeIndexQdrantUrl = this.contextProxy?.getGlobalState("codeIndexQdrantUrl") ?? ""
+		const codeIndexEmbedderType = this.contextProxy?.getGlobalState("codeIndexEmbedderType") ?? "openai"
+		const codeIndexOllamaBaseUrl =
+			this.contextProxy?.getGlobalState("codeIndexOllamaBaseUrl") ?? "http://localhost:11434"
+		const codeIndexOllamaModelId =
+			this.contextProxy?.getGlobalState("codeIndexOllamaModelId") ?? "nomic-embed-text:latest"
 
 		const openAiKey = this.contextProxy?.getSecret("codeIndexOpenAiKey") ?? ""
 		const qdrantApiKey = this.contextProxy?.getSecret("codeIndexQdrantApiKey") ?? ""
@@ -148,6 +163,11 @@ export class CodeIndexManager {
 		this.qdrantUrl = codeIndexQdrantUrl
 		this.qdrantApiKey = qdrantApiKey ?? ""
 		this.openAiOptions = { openAiNativeApiKey: openAiKey }
+		this.ollamaOptions = {
+			ollamaBaseUrl: codeIndexOllamaBaseUrl as string,
+			ollamaModelId: codeIndexOllamaModelId as string,
+		}
+		this.embedderType = codeIndexEmbedderType as string
 
 		const nowConfigured = this.isConfigured()
 
@@ -173,7 +193,8 @@ export class CodeIndexManager {
 		const shouldRestart =
 			((!prevEnabled || !prevConfigured) && codeIndexEnabled && nowConfigured) ||
 			prevOpenAiKey !== this.openAiOptions?.openAiNativeApiKey ||
-			(prevQdrantApiKey !== this.qdrantApiKey && prevQdrantUrl !== this.qdrantUrl)
+			(prevQdrantApiKey !== this.qdrantApiKey && prevQdrantUrl !== this.qdrantUrl) ||
+			prevEmbedderType !== this.embedderType
 
 		if (shouldRestart && nowConfigured) {
 			await this._instanceClients()
@@ -335,7 +356,7 @@ export class CodeIndexManager {
 				} else {
 					console.warn("[CodeIndexManager] Qdrant client not available, skipping vector collection clear.")
 				}
-			} catch (error: any) {
+			} catch (error) {
 				console.error("[CodeIndexManager] Failed to clear vector collection:", error)
 				this._setSystemState("Error", `Failed to clear vector collection: ${error.message}`)
 				// Don't re-throw, attempt cache deletion
@@ -414,9 +435,18 @@ export class CodeIndexManager {
 	}
 
 	private isConfigured(): boolean {
-		// Ensure openAiOptions itself exists before checking the key
-		return !!(this.openAiOptions?.openAiNativeApiKey && this.qdrantUrl)
+		const hasOpenAiCredentials = !!this.openAiOptions?.openAiNativeApiKey
+		const hasOllamaConfig = !!this.ollamaOptions?.ollamaBaseUrl && !!this.ollamaOptions?.ollamaModelId
+		const hasQdrantEndpoint = !!this.qdrantUrl
+
+		// Check configuration based on the selected embedder type
+		if (this.embedderType === "ollama") {
+			return hasOllamaConfig && hasQdrantEndpoint
+		} else {
+			return hasOpenAiCredentials && hasQdrantEndpoint
+		}
 	}
+
 	private async _startWatcher(): Promise<void> {
 		if (this._fileWatcher) {
 			console.log("[CodeIndexManager] File watcher already running.")
@@ -467,41 +497,34 @@ export class CodeIndexManager {
 		console.log("[CodeIndexManager] File watcher started.")
 	}
 
-	public async searchIndex(query: string, limit: number): Promise<QdrantSearchResult[]> {
-		if (!this.isEnabled || !this.isConfigured()) {
-			throw new Error("Code index feature is disabled or not configured.")
-		}
-		if (this._systemStatus !== "Indexed" && this._systemStatus !== "Indexing") {
-			// Allow search during Indexing too
-			throw new Error(`Code index is not ready for search. Current state: ${this._systemStatus}`)
-		}
-		if (!this._embedder || !this._qdrantClient) {
-			// Attempt to initialize if needed
-			if (this.isConfigured()) {
-				this._instanceClients()
-			} else {
-				throw new Error("Code index components could not be initialized - configuration missing.")
-			}
+	/**
+	 * Finds code blocks by similarity to the input query.
+	 * @param query The search query text.
+	 * @param limit Optional maximum number of results to return.
+	 * @returns Promise<QdrantSearchResult[]> Array of search results, or empty array if query fails.
+	 */
+	public async findSimilarCode(query: string, limit: number = 10): Promise<QdrantSearchResult[]> {
+		if (!this._embedder || !this._qdrantClient || this._systemStatus !== "Indexed") {
+			console.log("[CodeIndexManager] Cannot search: embedder, client missing or index not ready.")
+			return []
 		}
 
 		try {
-			const embeddingResponse = await this._embedder?.createEmbeddings([query])
-			const vector = embeddingResponse?.embeddings[0]
-			if (!vector) {
-				throw new Error("Failed to generate embedding for query.")
+			// Check if more than one model is available via Ollama
+			const embedderResponse = await this._embedder.createEmbeddings([query])
+			if (!embedderResponse || !embedderResponse.embeddings || !embedderResponse.embeddings[0]) {
+				throw new Error("Failed to create embeddings for search query")
 			}
 
-			if (typeof this._qdrantClient?.search !== "function") {
-				// This check might be redundant if the client is always correctly initialized
-				throw new Error("Qdrant client does not support search operation.")
-			}
+			// Get the vector embedding for the query
+			const vector = embedderResponse.embeddings[0]
 
+			// Execute the similarity search
 			const results = await this._qdrantClient.search(vector, limit)
 			return results
 		} catch (error) {
-			console.error("[CodeIndexManager] Error during search:", error)
-			this._setSystemState("Error", `Search failed: ${(error as Error).message}`)
-			throw error // Re-throw the error after setting state
+			console.error("[CodeIndexManager] Search error:", error)
+			return []
 		}
 	}
 }

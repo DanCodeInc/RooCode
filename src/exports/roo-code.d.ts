@@ -245,6 +245,9 @@ type GlobalSettings = {
 	alwaysAllowMcp?: boolean | undefined
 	codeIndexEnabled?: boolean | undefined
 	codeIndexQdrantUrl?: string | undefined
+	codeIndexEmbedderType?: string | undefined
+	codeIndexOllamaBaseUrl?: string | undefined
+	codeIndexOllamaModelId?: string | undefined
 	alwaysAllowModeSwitch?: boolean | undefined
 	alwaysAllowSubtasks?: boolean | undefined
 	alwaysAllowExecute?: boolean | undefined

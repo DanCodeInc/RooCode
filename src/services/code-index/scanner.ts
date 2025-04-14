@@ -5,7 +5,7 @@ import { stat } from "fs/promises"
 import * as path from "path"
 import { getWorkspacePath } from "../../utils/path"
 import { extensions } from "../tree-sitter"
-import { CodeIndexOpenAiEmbedder } from "./openai-embedder"
+import { CodeIndexEmbedderInterface } from "./embedder-interface"
 import { CodeIndexQdrantClient } from "./qdrant-client"
 import { ApiHandlerOptions } from "../../shared/api"
 import * as vscode from "vscode"
@@ -52,7 +52,7 @@ async function saveHashCache(cachePath: vscode.Uri, hashes: Record<string, strin
  */
 export async function scanDirectoryForCodeBlocks(
 	directoryPath: string = process.cwd(),
-	embedder: CodeIndexOpenAiEmbedder,
+	embedder: CodeIndexEmbedderInterface,
 	qdrantClient: CodeIndexQdrantClient,
 	rooIgnoreController?: RooIgnoreController,
 	context?: vscode.ExtensionContext,
@@ -142,8 +142,8 @@ export async function scanDirectoryForCodeBlocks(
 						batchBlocks,
 						batchTexts,
 						batchFileInfos,
-						embedder!,
-						qdrantClient!,
+						embedder,
+						qdrantClient,
 						newHashes,
 						onError,
 					)
@@ -162,7 +162,7 @@ export async function scanDirectoryForCodeBlocks(
 
 	// Process any remaining items in batch
 	if (batchBlocks.length > 0) {
-		await processBatch(batchBlocks, batchTexts, batchFileInfos, embedder!, qdrantClient!, newHashes, onError)
+		await processBatch(batchBlocks, batchTexts, batchFileInfos, embedder, qdrantClient, newHashes, onError)
 	}
 
 	// Handle deleted files (don't add them to newHashes)
@@ -191,7 +191,7 @@ export async function scanDirectoryForCodeBlocks(
 		batchBlocks: CodeBlock[],
 		batchTexts: string[],
 		batchFileInfos: { filePath: string; fileHash: string }[],
-		embedder: CodeIndexOpenAiEmbedder,
+		embedder: CodeIndexEmbedderInterface,
 		qdrantClient: CodeIndexQdrantClient,
 		newHashes: Record<string, string>,
 		onError?: (error: Error) => void,

@@ -93,7 +93,7 @@ export async function codebaseSearchTool(
 			throw new Error("Code Indexing is not configured (Missing OpenAI Key or Qdrant URL).")
 		}
 
-		const searchResults: QdrantSearchResult[] = await manager.searchIndex(query, limit)
+		const searchResults: QdrantSearchResult[] = await manager.findSimilarCode(query, limit)
 
 		// 3. Format and push results
 		if (!searchResults || searchResults.length === 0) {

@@ -751,8 +751,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
 		- 'unsafe-inline' is required for styles due to vscode-webview-toolkit's dynamic style injection
 		- since we pass base64 images to the webview, we need to specify img-src ${webview.cspSource} data:;
-
-		in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
 		*/
 		const nonce = getNonce()
 
@@ -1246,6 +1244,9 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			maxReadFileLine,
 			codeIndexEnabled,
 			codeIndexQdrantUrl,
+			codeIndexEmbedderType,
+			codeIndexOllamaBaseUrl,
+			codeIndexOllamaModelId,
 		} = await this.getState()
 
 		const telemetryKey = process.env.POSTHOG_API_KEY
@@ -1407,6 +1408,9 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			maxReadFileLine: stateValues.maxReadFileLine ?? 500,
 			codeIndexEnabled: stateValues.codeIndexEnabled ?? false,
 			codeIndexQdrantUrl: stateValues.codeIndexQdrantUrl ?? "",
+			codeIndexEmbedderType: stateValues.codeIndexEmbedderType ?? "",
+			codeIndexOllamaBaseUrl: stateValues.codeIndexOllamaBaseUrl ?? "",
+			codeIndexOllamaModelId: stateValues.codeIndexOllamaModelId ?? "",
 		}
 	}
 

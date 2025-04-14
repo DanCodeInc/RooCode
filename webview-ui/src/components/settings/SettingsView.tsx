@@ -138,6 +138,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		maxReadFileLine,
 		codeIndexEnabled,
 		codeIndexQdrantUrl,
+		codeIndexEmbedderType,
+		codeIndexOllamaBaseUrl,
+		codeIndexOllamaModelId,
 	} = cachedState
 
 	// Make sure apiConfiguration is initialized and managed by SettingsView.
@@ -258,6 +261,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "telemetrySetting", text: telemetrySetting })
 			vscode.postMessage({ type: "codeIndexEnabled", bool: codeIndexEnabled })
 			vscode.postMessage({ type: "codeIndexQdrantUrl", text: codeIndexQdrantUrl })
+			vscode.postMessage({ type: "codeIndexEmbedderType", text: codeIndexEmbedderType })
+			vscode.postMessage({ type: "codeIndexOllamaBaseUrl", text: codeIndexOllamaBaseUrl })
+			vscode.postMessage({ type: "codeIndexOllamaModelId", text: codeIndexOllamaModelId })
 			setChangeDetected(false)
 		}
 	}
@@ -520,6 +526,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					<CodeIndexSettings
 						codeIndexEnabled={codeIndexEnabled ?? false}
 						codeIndexQdrantUrl={codeIndexQdrantUrl ?? ""}
+						codeIndexEmbedderType={codeIndexEmbedderType ?? "openai"}
+						codeIndexOllamaBaseUrl={codeIndexOllamaBaseUrl ?? "http://localhost:11434"}
+						codeIndexOllamaModelId={codeIndexOllamaModelId ?? "nomic-embed-text:latest"}
 						apiConfiguration={apiConfiguration}
 						setApiConfigurationField={setApiConfigurationField}
 						setCachedStateField={setCachedStateField}

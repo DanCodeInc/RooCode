@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from "react"
 import { Database } from "lucide-react"
 import { vscode } from "../../utils/vscode"
-import { VSCodeCheckbox, VSCodeTextField, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeCheckbox,
+	VSCodeTextField,
+	VSCodeButton,
+	VSCodeDropdown,
+	VSCodeOption,
+} from "@vscode/webview-ui-toolkit/react"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -22,6 +28,9 @@ import { ApiConfiguration } from "../../../../src/shared/api"
 interface CodeIndexSettingsProps {
 	codeIndexEnabled: boolean
 	codeIndexQdrantUrl: string
+	codeIndexEmbedderType?: string
+	codeIndexOllamaBaseUrl?: string
+	codeIndexOllamaModelId?: string
 	apiConfiguration: ApiConfiguration
 	setCachedStateField: SetCachedStateField<keyof ExtensionStateContextType>
 	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
@@ -38,6 +47,9 @@ interface IndexingStatusUpdateMessage {
 export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 	codeIndexEnabled,
 	codeIndexQdrantUrl,
+	codeIndexEmbedderType = "openai",
+	codeIndexOllamaBaseUrl = "http://localhost:11434",
+	codeIndexOllamaModelId = "nomic-embed-text:latest",
 	apiConfiguration,
 	setCachedStateField,
 	setApiConfigurationField,
@@ -66,6 +78,11 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 			window.removeEventListener("message", handleMessage)
 		}
 	}, [codeIndexEnabled])
+
+	const handleEmbedderTypeChange = (e: any) => {
+		setCachedStateField("codeIndexEmbedderType", e.target.value)
+	}
+
 	return (
 		<>
 			<SectionHeader>
@@ -84,16 +101,57 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 				{codeIndexEnabled && (
 					<div className="mt-4 space-y-4">
 						<div className="space-y-2">
-							<VSCodeTextField
-								type="password"
-								value={apiConfiguration.codeIndexOpenAiKey || ""}
-								onInput={(e: any) => setApiConfigurationField("codeIndexOpenAiKey", e.target.value)}>
-								OpenAI API Key (for Embeddings)
-							</VSCodeTextField>
-							<p className="text-sm text-vscode-descriptionForeground">
-								Used to generate embeddings for code snippets.
-							</p>
+							<VSCodeDropdown value={codeIndexEmbedderType} onChange={handleEmbedderTypeChange}>
+								<VSCodeOption value="openai">OpenAI Embeddings</VSCodeOption>
+								<VSCodeOption value="ollama">Ollama Embeddings</VSCodeOption>
+							</VSCodeDropdown>
+							<p className="text-sm text-vscode-descriptionForeground">Select embedding model provider</p>
 						</div>
+
+						{codeIndexEmbedderType === "openai" && (
+							<div className="space-y-2">
+								<VSCodeTextField
+									type="password"
+									value={apiConfiguration.codeIndexOpenAiKey || ""}
+									onInput={(e: any) =>
+										setApiConfigurationField("codeIndexOpenAiKey", e.target.value)
+									}>
+									OpenAI API Key (for Embeddings)
+								</VSCodeTextField>
+								<p className="text-sm text-vscode-descriptionForeground">
+									Used to generate embeddings for code snippets.
+								</p>
+							</div>
+						)}
+
+						{codeIndexEmbedderType === "ollama" && (
+							<>
+								<div className="space-y-2">
+									<VSCodeTextField
+										value={codeIndexOllamaBaseUrl}
+										onInput={(e: any) =>
+											setCachedStateField("codeIndexOllamaBaseUrl", e.target.value)
+										}>
+										Ollama Base URL
+									</VSCodeTextField>
+									<p className="text-sm text-vscode-descriptionForeground">
+										URL of your running Ollama instance (default: http://localhost:11434).
+									</p>
+								</div>
+								<div className="space-y-2">
+									<VSCodeTextField
+										value={codeIndexOllamaModelId}
+										onInput={(e: any) =>
+											setCachedStateField("codeIndexOllamaModelId", e.target.value)
+										}>
+										Ollama Model ID
+									</VSCodeTextField>
+									<p className="text-sm text-vscode-descriptionForeground">
+										Model to use for embeddings (default: nomic-embed-text:latest).
+									</p>
+								</div>
+							</>
+						)}
 
 						<div className="space-y-2">
 							<VSCodeTextField
@@ -140,36 +198,32 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 
 						<div className="flex gap-2 mt-4">
 							<VSCodeButton
-								onClick={() => vscode.postMessage({ type: "startIndexing" })} // Added onClick
+								onClick={() => vscode.postMessage({ type: "startIndexing" })}
 								disabled={
-									!apiConfiguration.codeIndexOpenAiKey ||
+									(codeIndexEmbedderType === "openai" && !apiConfiguration.codeIndexOpenAiKey) ||
+									!codeIndexQdrantUrl ||
 									!apiConfiguration.codeIndexQdrantApiKey ||
 									systemStatus === "Indexing"
-								} // Added disabled logic
-							>
-								Start Indexing {/* Reverted translation */}
+								}>
+								Start Indexing
 							</VSCodeButton>
 							<AlertDialog>
 								<AlertDialogTrigger asChild>
-									<VSCodeButton appearance="secondary">
-										Clear Index Data {/* Reverted translation */}
-									</VSCodeButton>
+									<VSCodeButton appearance="secondary">Clear Index Data</VSCodeButton>
 								</AlertDialogTrigger>
 								<AlertDialogContent>
 									<AlertDialogHeader>
-										<AlertDialogTitle>Are you sure?</AlertDialogTitle> {/* Reverted translation */}
+										<AlertDialogTitle>Are you sure?</AlertDialogTitle>
 										<AlertDialogDescription>
 											This action cannot be undone. This will permanently delete your codebase
-											index data. {/* Reverted translation */}
+											index data.
 										</AlertDialogDescription>
 									</AlertDialogHeader>
 									<AlertDialogFooter>
-										<AlertDialogCancel>Cancel</AlertDialogCancel> {/* Reverted translation */}
+										<AlertDialogCancel>Cancel</AlertDialogCancel>
 										<AlertDialogAction
-											// Removed variant="destructive"
-											onClick={() => vscode.postMessage({ type: "clearIndexData" })} // Added onClick
-										>
-											Clear Data {/* Reverted translation */}
+											onClick={() => vscode.postMessage({ type: "clearIndexData" })}>
+											Clear Data
 										</AlertDialogAction>
 									</AlertDialogFooter>
 								</AlertDialogContent>

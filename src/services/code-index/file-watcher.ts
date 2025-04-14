@@ -4,9 +4,9 @@ import { createHash } from "crypto"
 import { RooIgnoreController } from "../../core/ignore/RooIgnoreController"
 import { getWorkspacePath } from "../../utils/path"
 import { extensions } from "../tree-sitter"
-import { parseCodeFileByQueries, CodeBlock } from "./parser"
-import { CodeIndexOpenAiEmbedder } from "./openai-embedder"
+import { CodeBlock, parseCodeFileByQueries } from "./parser"
 import { CodeIndexQdrantClient } from "./qdrant-client"
+import { CodeIndexEmbedderInterface } from "./embedder-interface"
 import { v5 as uuidv5 } from "uuid"
 
 const QDRANT_CODE_BLOCK_NAMESPACE = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
@@ -23,7 +23,7 @@ export interface FileProcessingResult {
 export class CodeIndexFileWatcher {
 	private watcher: vscode.FileSystemWatcher
 	private ignoreController: RooIgnoreController
-	private embedder?: CodeIndexOpenAiEmbedder
+	private embedder?: CodeIndexEmbedderInterface
 	private qdrantClient?: CodeIndexQdrantClient
 	private hashCache: Record<string, string> = {}
 	private cachePath?: vscode.Uri
@@ -40,7 +40,7 @@ export class CodeIndexFileWatcher {
 	constructor(
 		private workspacePath: string,
 		private context: vscode.ExtensionContext,
-		embedder?: CodeIndexOpenAiEmbedder,
+		embedder?: CodeIndexEmbedderInterface,
 		qdrantClient?: CodeIndexQdrantClient,
 	) {
 		this.ignoreController = new RooIgnoreController(workspacePath)

@@ -205,8 +205,10 @@ describe("mergeExtensionState", () => {
 			renderContext: "sidebar",
 			maxReadFileLine: 500,
 			codeIndexEnabled: false,
-			codeIndexOpenAiKey: "",
 			codeIndexQdrantUrl: "",
+			codeIndexEmbedderType: "openai",
+			codeIndexOllamaBaseUrl: "http://localhost:11434",
+			codeIndexOllamaModelId: "nomic-embed-text:latest",
 		}
 
 		const prevState: ExtensionState = {

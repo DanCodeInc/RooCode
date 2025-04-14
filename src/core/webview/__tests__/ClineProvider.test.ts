@@ -427,6 +427,9 @@ describe("ClineProvider", () => {
 			showRooIgnoredFiles: true,
 			renderContext: "sidebar",
 			maxReadFileLine: 500,
+			codeIndexEmbedderType: "openai",
+			codeIndexOllamaBaseUrl: "http://localhost:11434",
+			codeIndexOllamaModelId: "nomic-embed-text:latest",
 		}
 
 		const message: ExtensionMessage = {
@@ -1771,8 +1774,8 @@ describe("ClineProvider", () => {
 			} as any
 
 			// Setup Cline instance with auto-mock from the top of the file
-			const { Cline } = require("../../Cline") // Get the mocked class
-			const mockCline = new Cline() // Create a new mocked instance
+			const { Cline } = require("../../Cline")
+			const mockCline = new Cline()
 			await provider.addClineToStack(mockCline)
 
 			const testApiConfig = {

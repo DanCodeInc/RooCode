@@ -1330,6 +1330,27 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			await provider.postStateToWebview()
 			break
 		}
+		case "codeIndexEmbedderType": {
+			const codeIndexEmbedderType = message.text ?? "openai"
+			await updateGlobalState("codeIndexEmbedderType", codeIndexEmbedderType)
+			await provider.codeIndexManager.loadConfiguration()
+			await provider.postStateToWebview()
+			break
+		}
+		case "codeIndexOllamaBaseUrl": {
+			const codeIndexOllamaBaseUrl = message.text ?? "http://localhost:11434"
+			await updateGlobalState("codeIndexOllamaBaseUrl", codeIndexOllamaBaseUrl)
+			await provider.codeIndexManager.loadConfiguration()
+			await provider.postStateToWebview()
+			break
+		}
+		case "codeIndexOllamaModelId": {
+			const codeIndexOllamaModelId = message.text ?? "nomic-embed-text:latest"
+			await updateGlobalState("codeIndexOllamaModelId", codeIndexOllamaModelId)
+			await provider.codeIndexManager.loadConfiguration()
+			await provider.postStateToWebview()
+			break
+		}
 		case "requestIndexingStatus": {
 			const status = provider.codeIndexManager!.getCurrentStatus()
 			provider.postMessageToWebview({

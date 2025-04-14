@@ -73,6 +73,9 @@ export interface ExtensionMessage {
 		| "indexCleared"
 		| "codeIndexEnabled"
 		| "codeIndexQdrantUrl"
+		| "codeIndexEmbedderType"
+		| "codeIndexOllamaBaseUrl"
+		| "codeIndexOllamaModelId"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -172,6 +175,9 @@ export type ExtensionState = Pick<
 	| "enhancementApiConfigId"
 	| "codeIndexEnabled"
 	| "codeIndexQdrantUrl"
+	| "codeIndexEmbedderType"
+	| "codeIndexOllamaBaseUrl"
+	| "codeIndexOllamaModelId"
 > & {
 	version: string
 	clineMessages: ClineMessage[]
@@ -209,6 +215,13 @@ export type ExtensionState = Pick<
 
 	renderContext: "sidebar" | "editor"
 	settingsImportedAt?: number
+
+	// Code index settings
+	codeIndexEnabled?: boolean
+	codeIndexQdrantUrl?: string
+	codeIndexEmbedderType?: string
+	codeIndexOllamaBaseUrl?: string
+	codeIndexOllamaModelId?: string
 }
 
 export type { ClineMessage, ClineAsk, ClineSay }

@@ -12,12 +12,5 @@ Usage:
 <path>Directory path here</path>
 <regex>Your regex pattern here</regex>
 <file_pattern>file pattern here (optional)</file_pattern>
-</search_files>
-
-Example: Requesting to search for all .ts files in the current directory
-<search_files>
-<path>.</path>
-<regex>.*</regex>
-<file_pattern>*.ts</file_pattern>
 </search_files>`
 }

@@ -1,23 +1,17 @@
 export function getAttemptCompletionDescription(): string {
 	return `## attempt_completion
-Description: After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
-IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.
-Parameters:
-- result: (required) The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.
-- command: (optional) A CLI command to execute to show a live demo of the result to the user. For example, use \`open index.html\` to display a created html website, or \`open localhost:3000\` to display a locally running development server. But DO NOT use commands like \`echo\` or \`cat\` that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
-Usage:
-<attempt_completion>
-<result>
-Your final result description here
-</result>
-<command>Command to demonstrate result (optional)</command>
-</attempt_completion>
 
-Example: Requesting to attempt completion with a result and command
-<attempt_completion>
-<result>
-I've updated the CSS
-</result>
-<command>open index.html</command>
-</attempt_completion>`
+Description: Use this tool to present a detailed summary and a conclusion of your work to the user once the task is complete. This tool should **only** be used after you have executed any necessary preceding tool calls and have received confirmation from the user that those actions were successful. After you use this tool, the user will review the result and may provide feedback for further refinement.
+When a task is completed you may use this tool to present the final result to the user, the summary you provide is visible to the user, this means you should prefer including all the relevant information within the result parameter of the tool itself.
+Using this tool prematurely, before confirming the success of required steps, will lead to presenting incomplete or incorrect results so this tool should only be used after the task has been completed correctly. Do not use this tool to tell the user that you are unable to complete the task or to ask questions.
+
+Parameters
+
+- result: (required) A clear, detailed and definitive summary describing the final outcome of the task. Present this as a statement of completion, avoiding questions or open-ended prompts for further assistance.
+  Usage:
+  <attempt_completion>
+  <result>
+  The conclusion summary of the task here
+  </result>
+  </attempt_completion>`
 }

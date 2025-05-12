@@ -1,7 +1,8 @@
 export function markdownFormattingSection(): string {
-	return `====
+	return `<markdown>
+In all responses, format any code constructs or filenames as clickable links. e.g [\`element\`](path/to/file.ext:line-number) only if the path and line numbers are known.
+- The line number is required for syntax references and optional for filenames.
+- This applies to all Markdown responses and those in the <attempt_completion> tool.
 
-MARKDOWN RULES
-
-ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>`
+</markdown>`
 }

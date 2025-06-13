@@ -1,15 +1,14 @@
 # Roo Code Changelog
 
-### Patch Changes
+## [3.20.1] - 2025-06-12
 
-- Always focus the panel when clicked to ensure menu buttons are available
-- Add "qwen/qwen3-32b" model for Groq
-- Add in/out price for all Groq models
-- Add "magistral-medium-latest" and "mistral-medium-latest" models for Mistral
+- Temporarily revert thinking support for Bedrock models
+- Improve performance of MCP execution block
+- Add indexing status badge to chat view
 
 ## [3.20.0] - 2025-06-12
 
-- Add experimental Marketplace for extensions and modes (thanks @Smartsheet-JB-Brown, @elianiva, @monkeyDluffy6017, @NamesMT, @daniel-lxs, and more!)
+- Add experimental Marketplace for extensions and modes (thanks @Smartsheet-JB-Brown, @elianiva, @monkeyDluffy6017, @NamesMT, @daniel-lxs, Cline, and more!)
 - Add experimental multi-file edits (thanks @samhvw8!)
 - Move concurrent reads setting to context settings with default of 5
 - Improve MCP execution UX (thanks @samhvw8!)

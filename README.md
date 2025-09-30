@@ -35,7 +35,7 @@
 - [简体中文](locales/zh-CN/README.md)
 - [繁體中文](locales/zh-TW/README.md)
 - ...
-    </details>
+      </details>
 
 ---
 
@@ -48,6 +48,7 @@
 - Answer Questions about your codebase
 - Automate repetitive tasks
 - Utilize MCP Servers
+- Test webhooks and automated reviews
 
 ## Modes
 

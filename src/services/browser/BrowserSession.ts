@@ -11,7 +11,7 @@ import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { discoverChromeHostUrl, tryChromeHostUrl } from "./browserDiscovery"
 
 // Timeout constants
-const BROWSER_NAVIGATION_TIMEOUT = 15_000 // 15 seconds
+const BROWSER_NAVIGATION_TIMEOUT = 20_000 // 20 seconds
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -256,7 +256,7 @@ export class BrowserSession {
 
 		// Wait for console inactivity, with a timeout
 		await pWaitFor(() => Date.now() - lastLogTs >= 500, {
-			timeout: 3_000,
+			timeout: 5_000,
 			interval: 100,
 		}).catch(() => {})
 

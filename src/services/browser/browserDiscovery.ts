@@ -5,7 +5,7 @@ import * as dns from "dns"
 /**
  * Check if a port is open on a given host
  */
-export async function isPortOpen(host: string, port: number, timeout = 1000): Promise<boolean> {
+export async function isPortOpen(host: string, port: number, timeout = 2000): Promise<boolean> {
 	return new Promise((resolve) => {
 		const socket = new net.Socket()
 		let status = false

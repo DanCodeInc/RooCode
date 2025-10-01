@@ -35,7 +35,7 @@
 - [简体中文](locales/zh-CN/README.md)
 - [繁體中文](locales/zh-TW/README.md)
 - ...
-  </details>
+      </details>
 
 ---
 
@@ -48,6 +48,7 @@
 - Answer Questions about your codebase
 - Automate repetitive tasks
 - Utilize MCP Servers
+- Test webhooks and automated reviews
 
 ## Modes
 
@@ -183,4 +184,6 @@ Thanks to all our contributors who have helped make Roo Code better!
 
 ---
 
-**Enjoy Roo Code!** Whether you keep it on a short leash or let it roam autonomously, we can’t wait to see what you build. If you have questions or feature ideas, drop by our [Reddit community](https://www.reddit.com/r/RooCode/) or [Discord](https://discord.gg/roocode). Happy coding!
+**Enjoy Roo Code!** Whether you keep it on a short leash or let it roam autonomously, we can't wait to see what you build. If you have questions or feature ideas, drop by our [Reddit community](https://www.reddit.com/r/RooCode/) or [Discord](https://discord.gg/roocode). Happy coding!
+
+<!-- Test webhook change -->

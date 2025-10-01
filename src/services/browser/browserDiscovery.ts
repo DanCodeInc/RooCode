@@ -5,7 +5,7 @@ import * as dns from "dns"
 /**
  * Check if a port is open on a given host
  */
-export async function isPortOpen(host: string, port: number, timeout = 1000): Promise<boolean> {
+export async function isPortOpen(host: string, port: number, timeout = 2000): Promise<boolean> {
 	return new Promise((resolve) => {
 		const socket = new net.Socket()
 		let status = false
@@ -45,7 +45,7 @@ export async function isPortOpen(host: string, port: number, timeout = 1000): Pr
 export async function tryChromeHostUrl(chromeHostUrl: string): Promise<boolean> {
 	try {
 		console.log(`Trying to connect to Chrome at: ${chromeHostUrl}/json/version`)
-		await axios.get(`${chromeHostUrl}/json/version`, { timeout: 1000 })
+		await axios.get(`${chromeHostUrl}/json/version`, { timeout: 2000 })
 		return true
 	} catch (error) {
 		return false

@@ -160,7 +160,7 @@ openssl s_client -connect hostname:port -CAfile /path/to/ca.pem
 - Certificate trust settings only apply to SSE and StreamableHTTP transports
 - STDIO transport servers do not use HTTPS and therefore don't need certificate configuration
 - The configuration requires Node.js environment; browser-based implementations may have different requirements
-- Test webhook commit 4
+- Test webhook commit 5 - testing 5min timeout with running task
 
 ## Related Documentation
 

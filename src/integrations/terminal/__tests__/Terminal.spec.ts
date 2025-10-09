@@ -52,7 +52,7 @@ describe("Terminal", () => {
 			vi.clearAllMocks()
 		})
 
-		it("should prepend cd command if requestedCwd differs from currentCwd", () => {
+		it("should prepend cd command if requestedCwd differs from currentCwd", async () => {
 			terminal.requestedCwd = "/requested/cwd"
 			vi.spyOn(terminal, "getCurrentWorkingDirectory").mockReturnValue("/initial/cwd")
 
@@ -65,11 +65,14 @@ describe("Terminal", () => {
 
 			terminal.runCommand("ls", callbacks)
 
-			expect(mockProcess.command).toBe('cd "/requested/cwd" && ls')
-			expect(mockRun).toHaveBeenCalledWith('cd "/requested/cwd" && ls')
+			// Wait for the async operation to complete
+			await vi.waitFor(() => {
+				expect(mockProcess.command).toBe('cd "/requested/cwd" && ls')
+				expect(mockRun).toHaveBeenCalledWith('cd "/requested/cwd" && ls')
+			})
 		})
 
-		it("should not prepend cd command if requestedCwd is the same as currentCwd", () => {
+		it("should not prepend cd command if requestedCwd is the same as currentCwd", async () => {
 			terminal.requestedCwd = "/initial/cwd"
 			vi.spyOn(terminal, "getCurrentWorkingDirectory").mockReturnValue("/initial/cwd")
 			const callbacks = {
@@ -81,11 +84,14 @@ describe("Terminal", () => {
 
 			terminal.runCommand("ls", callbacks)
 
-			expect(mockProcess.command).toBe("ls")
-			expect(mockRun).toHaveBeenCalledWith("ls")
+			// Wait for the async operation to complete
+			await vi.waitFor(() => {
+				expect(mockProcess.command).toBe("ls")
+				expect(mockRun).toHaveBeenCalledWith("ls")
+			})
 		})
 
-		it("should not prepend cd command if requestedCwd is not set", () => {
+		it("should not prepend cd command if requestedCwd is not set", async () => {
 			vi.spyOn(terminal, "getCurrentWorkingDirectory").mockReturnValue("/initial/cwd")
 			const callbacks = {
 				onLine: vi.fn(),
@@ -96,8 +102,11 @@ describe("Terminal", () => {
 
 			terminal.runCommand("ls", callbacks)
 
-			expect(mockProcess.command).toBe("ls")
-			expect(mockRun).toHaveBeenCalledWith("ls")
+			// Wait for the async operation to complete
+			await vi.waitFor(() => {
+				expect(mockProcess.command).toBe("ls")
+				expect(mockRun).toHaveBeenCalledWith("ls")
+			})
 		})
 	})
 })

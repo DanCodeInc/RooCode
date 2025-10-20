@@ -36,7 +36,7 @@
 - [简体中文](locales/zh-CN/README.md)
 - [繁體中文](locales/zh-TW/README.md)
 - ...
-      </details>
+  </details>
 
 <!-- First additional commit -->
 
@@ -87,6 +87,8 @@ Learn more: [Using Modes](https://docs.roocode.com/basic-usage/using-modes) • 
 - **[Reddit Community](https://www.reddit.com/r/RooCode):** Share your experiences and see what others are building.
 - **[GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues):** Report bugs and track development.
 - **[Feature Requests](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop):** Have an idea? Share it with the developers.
+
+<!-- Second additional commit -->
 
 ---
 

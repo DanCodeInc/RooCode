@@ -35,7 +35,7 @@
 - [简体中文](locales/zh-CN/README.md)
 - [繁體中文](locales/zh-TW/README.md)
 - ...
-      </details>
+  </details>
 
 ---
 
@@ -187,3 +187,4 @@ Thanks to all our contributors who have helped make Roo Code better!
 
 <!-- Test change for webhook verification -->
 <!-- First additional test commit -->
+<!-- Second additional test commit -->
